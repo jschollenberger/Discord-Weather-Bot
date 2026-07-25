@@ -36,5 +36,8 @@
     "weekly_summary_hour":      8,
 
     "alert_post_threshold":     "warning",
-    "alert_suppress_types":     []
+    "alert_suppress_types":     [],
+
+    "presence_enabled":          true,
+    "presence_rotate_secs":      120
 }

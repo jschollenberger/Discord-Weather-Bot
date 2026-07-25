@@ -14,6 +14,7 @@ Conditions are pulled from a personal weather station (PWS) via the Aeris/Xweath
 - **NWS alerts** posted automatically as they're issued, updated, or cancelled, filtered to Southern NJ by an explicit set of 10 NWS forecast zones and 7 county codes (see below) — not a heuristic — with a configurable severity threshold and a per-type suppression list
 - **Weekly outlook** auto-posted on a configurable day/time — forecast, tides, air quality, and active alert count
 - **Slash commands** for on-demand conditions, alerts, forecasts, tides, AQI, hurricane status, live radar imagery, and bot health
+- **Live status** — the bot shows a "Watching …" presence under its name reflecting current conditions, e.g. `Partly Cloudy · 72°F · No Alerts` or `Thunderstorm · 68°F · ⚠️ 2 alerts`
 - **Built to stay up** — per-service circuit breakers and exponential-backoff retries mean one flaky upstream API degrades gracefully instead of taking the bot down, state is written atomically so a crash mid-write can't corrupt it, and an NWS outage is never mistaken for "no active alerts" (so it can't trigger false all-clears)
 
 ## Coverage area
@@ -146,6 +147,9 @@ Startup validates `config.json` and exits with a specific, readable error for an
 | `discord_channel_id` | — | Channel the bot posts conditions and alerts to |
 | `discord_guild_id` | none | Optional — enables near-instant slash-command sync for one server instead of the ~1 hour global sync |
 | `command_sync` | "auto" | `auto` / `global` / `guild` — which scope slash commands register in. `auto` uses guild scope when `discord_guild_id` is set, global otherwise |
+| `presence_enabled` | true | Show a live "Watching …" status (sky · temp · alerts) under the bot's name |
+| `presence_rotate_secs` | 120 | Seconds between presence refreshes (minimum 60) |
+| `presence_fallback` | "the skies over <location>" | Status shown before the first observation is fetched |
 | `location_name` | "Southern NJ" | Display name used in embeds and slash-command descriptions (keep under 40 chars) |
 | `coverage` | 7 Southern NJ counties | Counties and NWS zones to match alerts against — see [Coverage area](#coverage-area) |
 | `conditions_update_mins` | 30 | How often the conditions message refreshes |
