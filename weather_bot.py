@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.8.0"
+__version__ = "2.8.1"
 
 import argparse
 import asyncio
@@ -478,6 +478,64 @@ def _log_cmd(interaction: discord.Interaction, name: str, extra: str = ""):
     _event(summary, detail)
 
 # ---------------------------------------------------------------------------
+# Discord embed limits
+# ---------------------------------------------------------------------------
+# Hard limits Discord enforces on message embeds (a 400 on send otherwise):
+#   title 256, description 4096, field name 256, field value 1024,
+#   footer 2048, author name 256, at most 25 fields, and a 6000-char total
+#   across all textual parts of one embed.
+# _clamp_embed() applies all of these to a finished embed dict so individual
+# builders can't overflow a limit and fail the send.  Belt-and-suspenders:
+# builders still truncate their own long fields where it produces nicer text
+# (e.g. an ellipsis mid-sentence), but this guarantees correctness centrally.
+_D_TITLE, _D_DESC, _D_FNAME, _D_FVAL, _D_FOOT = 256, 4096, 256, 1024, 2048
+_D_MAX_FIELDS, _D_TOTAL = 25, 6000
+
+def _clamp_embed(embed: dict) -> dict:
+    """Truncate an embed dict in place to Discord's limits; returns it."""
+    def cut(s, n):
+        s = "" if s is None else str(s)
+        return s if len(s) <= n else s[: n - 1] + "…"
+
+    if "title" in embed:       embed["title"]       = cut(embed["title"], _D_TITLE)
+    if "description" in embed: embed["description"] = cut(embed["description"], _D_DESC)
+    if isinstance(embed.get("footer"), dict) and "text" in embed["footer"]:
+        embed["footer"]["text"] = cut(embed["footer"]["text"], _D_FOOT)
+    if isinstance(embed.get("author"), dict) and "name" in embed["author"]:
+        embed["author"]["name"] = cut(embed["author"]["name"], _D_TITLE)
+
+    fields = embed.get("fields")
+    if isinstance(fields, list):
+        if len(fields) > _D_MAX_FIELDS:
+            log.warning(f"Embed had {len(fields)} fields; truncated to "
+                        f"{_D_MAX_FIELDS}")
+            fields = fields[:_D_MAX_FIELDS]
+        for fld in fields:
+            fld["name"]  = cut(fld.get("name", "\u200b") or "\u200b", _D_FNAME)
+            fld["value"] = cut(fld.get("value", "\u200b") or "\u200b", _D_FVAL)
+        embed["fields"] = fields
+
+    # Enforce the 6000-char aggregate by trimming the description if needed.
+    def total(e):
+        t = len(e.get("title", "")) + len(e.get("description", ""))
+        t += len(e.get("footer", {}).get("text", "")) if isinstance(e.get("footer"), dict) else 0
+        for fld in e.get("fields", []):
+            t += len(fld.get("name", "")) + len(fld.get("value", ""))
+        return t
+    over = total(embed) - _D_TOTAL
+    if over > 0 and embed.get("description"):
+        keep = max(0, len(embed["description"]) - over - 1)
+        embed["description"] = embed["description"][:keep] + "…"
+        log.warning("Embed exceeded 6000 chars; description trimmed")
+    return embed
+
+def _embed(embed_dict: dict) -> "discord.Embed":
+    """Clamp a dict to Discord's limits, then build the Embed.  All embed
+    construction goes through here so no send can 400 on a length limit."""
+    return discord.Embed.from_dict(_clamp_embed(embed_dict))
+
+
+# ---------------------------------------------------------------------------
 # State  (atomic writes via temp file)
 # ---------------------------------------------------------------------------
 def load_state() -> dict:
@@ -662,7 +720,7 @@ async def _send(embed_dict: dict,
     if _channel is None:
         log.error("No channel resolved; cannot send"); return None
     try:
-        kw: dict = {"embed": discord.Embed.from_dict(embed_dict)}
+        kw: dict = {"embed": _embed(embed_dict)}
         if reference: kw["reference"] = reference; kw["mention_author"] = False
         if view:      kw["view"] = view
         return await _channel.send(**kw)
@@ -677,11 +735,18 @@ async def _send(embed_dict: dict,
 class LinkButtonView(discord.ui.View):
     def __init__(self, buttons: list[tuple[str,str,str]]):
         super().__init__(timeout=None)
-        for label, emoji, url in buttons:
-            if url:
-                self.add_item(discord.ui.Button(
-                    label=label, emoji=emoji, url=url,
-                    style=discord.ButtonStyle.link))
+        # Discord allows at most 25 components (5 rows x 5) per view, and
+        # button labels are capped at 80 chars.  Guard both so an unusually
+        # long button list (e.g. many NHC storms) can't fail the send.
+        valid = [(l, e, u) for (l, e, u) in buttons if u]
+        if len(valid) > 25:
+            log.warning(f"LinkButtonView given {len(valid)} buttons; "
+                        f"showing first 25")
+            valid = valid[:25]
+        for label, emoji, url in valid:
+            self.add_item(discord.ui.Button(
+                label=label[:80], emoji=emoji, url=url,
+                style=discord.ButtonStyle.link))
 
 class ConditionsRefreshView(discord.ui.View):
     # Per-user cooldown: user_id -> last_refresh timestamp
@@ -714,7 +779,7 @@ class ConditionsRefreshView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         embed_dict = await _fetch_and_build_conditions()
         if embed_dict and interaction.message:
-            await interaction.message.edit(embed=discord.Embed.from_dict(embed_dict))
+            await interaction.message.edit(embed=_embed(embed_dict))
             save_state(_state)   # persist pressure_history from this refresh
             await interaction.followup.send("Conditions refreshed!", ephemeral=True)
         else:
@@ -743,7 +808,7 @@ class _AlertSelect(discord.ui.Select):
         feature = self._alerts[int(self.values[0])]
         view    = _alert_view(feature)
         await interaction.response.send_message(
-            embed=discord.Embed.from_dict(build_alert_embed(feature)),
+            embed=_embed(build_alert_embed(feature)),
             view=view, ephemeral=True)
 
 class AlertSelectView(discord.ui.View):
@@ -1224,7 +1289,7 @@ async def _send_cleared(message_id, event: str, area: str, cancelled: bool = Fal
     if _channel and message_id:
         try:
             orig = await _channel.fetch_message(int(message_id))
-            await _channel.send(embed=discord.Embed.from_dict(ed),
+            await _channel.send(embed=_embed(ed),
                                 reference=orig, mention_author=False)
             sent = True
         except discord.NotFound:
@@ -1614,7 +1679,7 @@ async def _update_conditions():
     if msg_id and _channel and not repost:
         try:
             msg = await _channel.fetch_message(int(msg_id))
-            await msg.edit(embed=discord.Embed.from_dict(embed_dict))
+            await msg.edit(embed=_embed(embed_dict))
             log.info("Conditions message updated (edit)")
             return
         except discord.NotFound:
@@ -1716,7 +1781,7 @@ async def _task_alerts() -> bool:
             if orig_msg_id:
                 try:
                     orig = await _channel.fetch_message(int(orig_msg_id))
-                    kw = {"embed":discord.Embed.from_dict(embed),"reference":orig,"mention_author":False}
+                    kw = {"embed":_embed(embed),"reference":orig,"mention_author":False}
                     if view: kw["view"] = view
                     msg = await _channel.send(**kw)
                 except Exception as e: log.error(f"Update reply failed: {type(e).__name__}: {e}")
@@ -2050,7 +2115,7 @@ async def on_ready():
 async def slash_help(interaction: discord.Interaction):
     _log_cmd(interaction, "help")
     await interaction.response.send_message(
-        embed=discord.Embed.from_dict(_HELP_EMBED), ephemeral=True)
+        embed=_embed(_HELP_EMBED), ephemeral=True)
 
 
 @tree.command(name="conditions", description="Get weather conditions from a PWS station")
@@ -2061,7 +2126,7 @@ async def slash_conditions(interaction: discord.Interaction,
     await interaction.response.defer()
     embed_dict = await _fetch_and_build_conditions(station_id, fast=True)
     if embed_dict:
-        await interaction.followup.send(embed=discord.Embed.from_dict(embed_dict))
+        await interaction.followup.send(embed=_embed(embed_dict))
     else:
         hint = f" (station `{station_id.upper()}`)" if station_id else ""
         await interaction.followup.send(
@@ -2094,7 +2159,7 @@ async def slash_alerts(interaction: discord.Interaction):
         embed_d = build_alert_embed(feature)
         if note: embed_d["description"] = (embed_d.get("description","") + note)[:4096]
         await interaction.followup.send(
-            embed=discord.Embed.from_dict(embed_d),
+            embed=_embed(embed_d),
             view=_alert_view(feature))
     else:
         pfx = (f"*Showing all {len(southern)} alerts — select one for full details.*"
@@ -2105,7 +2170,7 @@ async def slash_alerts(interaction: discord.Interaction):
         embed_d["footer"] = {"text": embed_d.get("footer",{}).get("text","") + footer_note}
         await interaction.followup.send(
             content=pfx,
-            embed=discord.Embed.from_dict(embed_d),
+            embed=_embed(embed_d),
             view=AlertSelectView(southern))
 
 
@@ -2129,7 +2194,7 @@ async def slash_forecast(interaction: discord.Interaction,
     if periods:
         title = f"📅  7-Day Forecast — {location_label}" if zipcode else None
         await interaction.followup.send(
-            embed=discord.Embed.from_dict(build_forecast_embed(periods, title)))
+            embed=_embed(build_forecast_embed(periods, title)))
     else:
         await interaction.followup.send(
             "❌  Could not fetch the NWS forecast — try again in a moment.")
@@ -2149,7 +2214,7 @@ async def slash_tides(interaction: discord.Interaction,
         embed = build_tides_embed(preds, sid, sname)
         view  = LinkButtonView([("NOAA Tide Station","📡",
                                  f"https://tidesandcurrents.noaa.gov/stationhome.html?id={sid or TIDE_STATION_ID}")])
-        await interaction.followup.send(embed=discord.Embed.from_dict(embed), view=view)
+        await interaction.followup.send(embed=_embed(embed), view=view)
     else:
         hint = f" for station `{sid}`" if sid else ""
         await interaction.followup.send(
@@ -2171,7 +2236,7 @@ async def slash_aqi(interaction: discord.Interaction):
     forecast = await fetch_aqi_forecast()
     if obs:
         await interaction.followup.send(
-            embed=discord.Embed.from_dict(build_aqi_embed(obs,forecast)),
+            embed=_embed(build_aqi_embed(obs,forecast)),
             view=LinkButtonView([("AirNow Website","🌫️","https://www.airnow.gov/")]))
     else:
         await interaction.followup.send("❌  Could not fetch AQI data — try again in a moment.")
@@ -2192,7 +2257,7 @@ async def slash_hurricane(interaction: discord.Interaction):
         if disc: buttons.append((f"{name} Discussion","📝", disc))
         if fcst: buttons.append((f"{name} Track",     "🗺️", fcst))
     await interaction.followup.send(
-        embed=discord.Embed.from_dict(build_hurricane_embed(storms)),
+        embed=_embed(build_hurricane_embed(storms)),
         view=LinkButtonView(buttons))
 
 
@@ -2229,7 +2294,7 @@ async def slash_radar(interaction: discord.Interaction):
         fname = f"radar_{RADAR_STATION}.gif"
         embed["image"] = {"url": f"attachment://{fname}"}
         await interaction.followup.send(
-            embed=discord.Embed.from_dict(embed),
+            embed=_embed(embed),
             file=discord.File(io.BytesIO(img), filename=fname),
             view=LinkButtonView(buttons))
         return
@@ -2238,7 +2303,7 @@ async def slash_radar(interaction: discord.Interaction):
         embed["footer"] = {"text": "NWS radar.weather.gov | live image "
                                    "unavailable — use the buttons below"}
     await interaction.followup.send(
-        embed=discord.Embed.from_dict(embed),
+        embed=_embed(embed),
         view=LinkButtonView(buttons))
 
 @tree.command(name="status", description="Bot operational status and service health")
@@ -2315,7 +2380,7 @@ async def slash_status(interaction: discord.Interaction):
              "color":0x57F287 if not cb_lines else 0xFFD700,
              "fields":fields,
              "footer":{"text":f"v{__version__} | Started {start_str}"}}
-    await interaction.followup.send(embed=discord.Embed.from_dict(embed), ephemeral=True)
+    await interaction.followup.send(embed=_embed(embed), ephemeral=True)
 
 
 # ---------------------------------------------------------------------------
