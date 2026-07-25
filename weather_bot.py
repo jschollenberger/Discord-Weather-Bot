@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.7.6"
+__version__ = "2.8.0"
 
 import argparse
 import asyncio
@@ -275,6 +275,12 @@ def _validate_config(cfg: dict) -> list[str]:
         errs.append(f"  x command_sync: must be auto, global, or guild "
                     f"(got {cfg.get('command_sync')!r})")
 
+    # Presence fallback text: Discord caps activity names at 128 chars.
+    pf = cfg.get("presence_fallback")
+    if pf is not None and not (isinstance(pf, str) and 0 < len(pf) <= 120):
+        errs.append("  x presence_fallback: must be a non-empty string under "
+                    "120 characters (omit the key to use the default)")
+
     errs.extend(_validate_coverage(cfg.get("coverage")))
     return errs
 
@@ -378,6 +384,12 @@ RADAR_STATION_NAME      = _cfg.get("radar_station_name","Fort Dix, NJ")
 RADAR_REGION            = _cfg.get("radar_region","northeast")
 RADAR_ATTACH_IMAGE      = bool(_cfg.get("radar_attach_image",True))
 COMMAND_SYNC            = str(_cfg.get("command_sync","auto")).lower()
+PRESENCE_ENABLED        = bool(_cfg.get("presence_enabled",True))
+PRESENCE_ROTATE_SECS    = max(60, int(_cfg.get("presence_rotate_secs",120)))
+# Shown before the first observation/alert check completes, or if data is
+# briefly unavailable.  Kept region-neutral by using location_name.
+PRESENCE_FALLBACK       = str(_cfg.get("presence_fallback",
+                                       f"the skies over {LOCATION_NAME}"))[:128]
 AIRNOW_KEY              = _cfg.get("airnow_api_key")
 AQI_THRESHOLD           = int(_cfg.get("aqi_alert_threshold",3))
 WEEKLY_DAY              = int(_cfg.get("weekly_summary_day",6))
@@ -953,6 +965,13 @@ async def _fetch_and_build_conditions(station_id: str | None = None,
     if not c: return None
     if station_id is None:
         _record_pressure(c.get("pressure"))
+        # Cache latest observation for the rotating presence status
+        t = c.get("temp")
+        if isinstance(t, (int, float)):
+            _state["last_temp_f"] = t
+        sky = c.get("weather")
+        if isinstance(sky, str) and sky:
+            _state["last_sky"] = sky
     return build_conditions_embed(
         c, aqi_data,
         tendency=_barometric_tendency() if station_id is None else "",
@@ -1763,6 +1782,67 @@ async def _post_weekly_summary():
 # ---------------------------------------------------------------------------
 # Scheduler  (self-healing: exceptions logged but loop continues)
 # ---------------------------------------------------------------------------
+def _presence_text() -> str:
+    """
+    Build the single composite status shown under the bot's name, e.g.
+        "Partly Cloudy · 72°F · 2 alerts"
+        "58°F · No Alerts"
+        "⚠️ 1 alert · watching the skies"
+    Each segment is included only when its data is available, joined with a
+    dot separator.  Alerts are always represented (count, or "No Alerts") once
+    the bot has run an alert check, since that is the operationally useful bit.
+    """
+    parts: list[str] = []
+
+    sky = _state.get("last_sky")
+    if isinstance(sky, str) and sky:
+        parts.append(sky)
+
+    temp = _state.get("last_temp_f")
+    if isinstance(temp, (int, float)):
+        parts.append(f"{round(temp)}°F")
+
+    # Alert segment: only once at least one alert check has completed, so we
+    # don't claim "No Alerts" before we actually know.
+    if _state.get("last_alert_check_ts"):
+        active = sum(1 for a in _state.get("posted_alerts", {}).values()
+                     if not (a.get("cleared") or a.get("superseded_by")))
+        if active:
+            parts.append(f"⚠️ {active} alert{'s' if active != 1 else ''}")
+        else:
+            parts.append("No Alerts")
+
+    if not parts:
+        # Nothing fetched yet (very first moments after startup)
+        return PRESENCE_FALLBACK
+    text = " · ".join(parts)
+    # Discord caps activity text at 128 chars; "Watching " is client-side.
+    return text[:128]
+
+async def _rotate_presence():
+    """
+    Keep the bot's 'Watching …' status in sync with current conditions.
+
+    Runs independently of the weather scheduler so a presence hiccup can never
+    disturb posting, and vice versa.  Refreshes every PRESENCE_ROTATE_SECS and
+    also immediately whenever the composite text changes (so a new alert shows
+    up without waiting for the next tick would require event hooks; here we
+    simply poll on a short-enough interval).  A failure is non-fatal and just
+    logged.
+    """
+    log.info(f"Presence updates started (every {PRESENCE_ROTATE_SECS}s)")
+    last = None
+    while True:
+        try:
+            text = _presence_text()
+            if text != last:
+                await bot.change_presence(activity=discord.Activity(
+                    type=discord.ActivityType.watching, name=text))
+                last = text
+        except Exception as e:
+            log.warning(f"Presence update failed: {type(e).__name__}: {e}")
+        await asyncio.sleep(PRESENCE_ROTATE_SECS)
+
 async def _scheduler():
     log.info("Scheduler started")
     cond_interval = CONDITIONS_UPDATE_MINS*60
@@ -1927,6 +2007,8 @@ async def on_ready():
         _start_time = time.time()
         bot.add_view(ConditionsRefreshView())
         await _sync_commands()
+        if PRESENCE_ENABLED:
+            asyncio.create_task(_rotate_presence())
     else:
         log.info("READY re-dispatched; retrying channel resolution")
 

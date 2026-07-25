@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-07-21
+
+### Added
+- Live bot presence: the bot shows a "Watching …" status under its name that reflects current conditions — sky condition, temperature, and alert count — joined with dot separators, e.g. `Partly Cloudy · 72°F · No Alerts` or `Thunderstorm · 68°F · ⚠️ 2 alerts`. Each segment appears only when its data is available, and the alert segment ("No Alerts" or a count) shows once the first alert check has completed. Refreshes every `presence_rotate_secs` (default 120), only issues a gateway update when the text actually changes, and can be disabled with `presence_enabled: false`. `presence_fallback` sets the text shown before the first observation.
+
 ## [2.7.6] - 2026-07-21
 
 ### Added
@@ -84,7 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.6...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.6...v2.8.0
 [2.7.6]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.3...v2.7.4

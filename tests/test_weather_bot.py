@@ -436,6 +436,85 @@ class TestConfigWarnings:
 
 
 # ============================================================================
+# Composite presence status
+# ============================================================================
+
+class TestPresenceText:
+    @staticmethod
+    def make(state, fallback="watching the skies"):
+        ns = {"PRESENCE_FALLBACK": fallback, "_state": state}
+        return _exec_block("def _presence_text", "async def _rotate_presence",
+                           ns)["_presence_text"]()
+
+    def test_fallback_before_any_data(self):
+        assert self.make({}) == "watching the skies"
+
+    def test_sky_and_temp_joined_with_dot(self):
+        assert self.make({"last_sky": "Partly Cloudy", "last_temp_f": 72.4}) \
+            == "Partly Cloudy · 72°F"
+
+    def test_temp_rounded(self):
+        assert "58°F" in self.make({"last_temp_f": 58.2})
+
+    def test_no_alert_segment_before_first_check(self):
+        """Must not claim 'No Alerts' before an alert check has run."""
+        assert "clear" not in self.make({"last_temp_f": 70})
+
+    def test_all_clear_after_check_with_no_alerts(self):
+        out = self.make({"last_temp_f": 70, "last_alert_check_ts": 1,
+                         "posted_alerts": {}})
+        assert out.endswith("No Alerts")
+
+    def test_active_alerts_plural(self):
+        out = self.make({"last_alert_check_ts": 1,
+                         "posted_alerts": {"a": {}, "b": {}}})
+        assert "⚠️ 2 alerts" in out
+
+    def test_active_alert_singular(self):
+        out = self.make({"last_alert_check_ts": 1, "posted_alerts": {"a": {}}})
+        assert "⚠️ 1 alert" in out and "alerts" not in out
+
+    def test_cleared_and_superseded_not_counted(self):
+        out = self.make({"last_alert_check_ts": 1, "posted_alerts": {
+            "a": {"cleared": True}, "b": {"superseded_by": "x"}}})
+        assert out == "No Alerts"
+
+    def test_full_composite_order(self):
+        out = self.make({"last_sky": "Thunderstorm", "last_temp_f": 68,
+                         "last_alert_check_ts": 1, "posted_alerts": {"a": {}}})
+        assert out == "Thunderstorm · 68°F · ⚠️ 1 alert"
+
+    def test_malformed_temp_ignored(self):
+        out = self.make({"last_sky": "Foggy", "last_temp_f": "warm",
+                         "last_alert_check_ts": 1, "posted_alerts": {}})
+        assert out == "Foggy · No Alerts"
+
+    def test_result_capped_at_128_chars(self):
+        out = self.make({"last_sky": "X" * 200})
+        assert len(out) <= 128
+
+
+class TestPresenceValidation:
+    def test_absent_uses_defaults(self):
+        assert _validate_config(cfg()) == []
+
+    def test_custom_fallback_accepted(self):
+        assert _validate_config(cfg(presence_fallback="the horizon")) == []
+
+    def test_empty_fallback_rejected(self):
+        assert any("presence_fallback" in e
+                   for e in _validate_config(cfg(presence_fallback="")))
+
+    def test_non_string_fallback_rejected(self):
+        assert any("presence_fallback" in e
+                   for e in _validate_config(cfg(presence_fallback=["x"])))
+
+    def test_overlong_fallback_rejected(self):
+        assert any("presence_fallback" in e
+                   for e in _validate_config(cfg(presence_fallback="x" * 200)))
+
+
+# ============================================================================
 # Log redaction - credentials must never reach the log file
 # ============================================================================
 
