@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.8.1"
+__version__ = "2.9.0"
 
 import argparse
 import asyncio
@@ -785,6 +785,33 @@ class ConditionsRefreshView(discord.ui.View):
         else:
             await interaction.followup.send(
                 "Could not reach the weather station right now.", ephemeral=True)
+
+    # Quick-action buttons: each replies ephemerally (visible only to the
+    # clicker) so the shared conditions message and the channel stay clean,
+    # and reuses the same responder as the corresponding slash command.
+    @discord.ui.button(label="Radar", emoji="📡",
+                       style=discord.ButtonStyle.primary,
+                       custom_id="snj_weather:radar")
+    async def radar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        _log_cmd(interaction, "radar_button")
+        await interaction.response.defer(ephemeral=True)
+        await _respond_radar(interaction, ephemeral=True)
+
+    @discord.ui.button(label="Alerts", emoji="⚠️",
+                       style=discord.ButtonStyle.primary,
+                       custom_id="snj_weather:alerts")
+    async def alerts_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        _log_cmd(interaction, "alerts_button")
+        await interaction.response.defer(ephemeral=True)
+        await _respond_alerts(interaction, ephemeral=True)
+
+    @discord.ui.button(label="Forecast", emoji="📅",
+                       style=discord.ButtonStyle.primary,
+                       custom_id="snj_weather:forecast")
+    async def forecast_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        _log_cmd(interaction, "forecast_button")
+        await interaction.response.defer(ephemeral=True)
+        await _respond_forecast(interaction, ephemeral=True)
 
 class _AlertSelect(discord.ui.Select):
     def __init__(self, alerts: list):
@@ -2133,20 +2160,25 @@ async def slash_conditions(interaction: discord.Interaction,
             f"❌  Could not reach the weather station{hint} — check the ID and try again.")
 
 
-@tree.command(name="alerts", description=f"Check active NWS alerts for {LOCATION_NAME}")
-async def slash_alerts(interaction: discord.Interaction):
-    _log_cmd(interaction, "alerts")
-    await interaction.response.defer()
+# ---------------------------------------------------------------------------
+# Shared responders — used by both slash commands and the conditions-message
+# dashboard buttons, so each has exactly one implementation.  `ephemeral`
+# controls visibility: button clicks reply only to the clicker (keeping the
+# channel clean), while slash commands reply publicly.
+# ---------------------------------------------------------------------------
+async def _respond_alerts(interaction: discord.Interaction, *, ephemeral: bool):
     all_alerts = await fetch_alerts(fast=True)
     if all_alerts is None:
         await interaction.followup.send(
-            "❌  Could not reach the NWS alerts API — try again in a moment.")
+            "❌  Could not reach the NWS alerts API — try again in a moment.",
+            ephemeral=ephemeral)
         return
-    southern   = [f for f in all_alerts if _in_coverage(f)]
+    southern = [f for f in all_alerts if _in_coverage(f)]
     if not southern:
-        await interaction.followup.send(f"✅  No active NWS alerts for {LOCATION_NAME} right now.")
+        await interaction.followup.send(
+            f"✅  No active NWS alerts for {LOCATION_NAME} right now.",
+            ephemeral=ephemeral)
         return
-    # Identify which active alerts are below the current post threshold
     suppressed = {f.get("properties",{}).get("event","") for f in southern
                   if _alert_is_suppressed(f.get("properties",{}).get("event",""))}
     if len(southern) == 1:
@@ -2159,8 +2191,7 @@ async def slash_alerts(interaction: discord.Interaction):
         embed_d = build_alert_embed(feature)
         if note: embed_d["description"] = (embed_d.get("description","") + note)[:4096]
         await interaction.followup.send(
-            embed=_embed(embed_d),
-            view=_alert_view(feature))
+            embed=_embed(embed_d), view=_alert_view(feature), ephemeral=ephemeral)
     else:
         pfx = (f"*Showing all {len(southern)} alerts — select one for full details.*"
                if len(southern) > 5 else None)
@@ -2169,9 +2200,70 @@ async def slash_alerts(interaction: discord.Interaction):
         embed_d = build_alerts_summary_embed(southern, suppressed)
         embed_d["footer"] = {"text": embed_d.get("footer",{}).get("text","") + footer_note}
         await interaction.followup.send(
-            content=pfx,
-            embed=_embed(embed_d),
-            view=AlertSelectView(southern))
+            content=pfx, embed=_embed(embed_d),
+            view=AlertSelectView(southern), ephemeral=ephemeral)
+
+async def _respond_forecast(interaction: discord.Interaction, *, ephemeral: bool,
+                            zipcode: str | None = None):
+    lat = lon = None
+    location_label = LOCATION_NAME
+    if zipcode:
+        coords = await geocode_zip(zipcode.strip())
+        if coords is None:
+            await interaction.followup.send(
+                f"❌  Could not look up zip code `{zipcode}` — verify it's a valid US zip.",
+                ephemeral=ephemeral)
+            return
+        lat, lon = coords; location_label = f"Zip {zipcode}"
+    periods = await fetch_forecast(lat, lon, fast=True)
+    if periods:
+        title = f"📅  7-Day Forecast — {location_label}" if zipcode else None
+        await interaction.followup.send(
+            embed=_embed(build_forecast_embed(periods, title)), ephemeral=ephemeral)
+    else:
+        await interaction.followup.send(
+            "❌  Could not fetch the NWS forecast — try again in a moment.",
+            ephemeral=ephemeral)
+
+async def _respond_radar(interaction: discord.Interaction, *, ephemeral: bool):
+    buttons = [
+        (f"{RADAR_STATION} Standard", "🌧️",
+         f"https://radar.weather.gov/station/{RADAR_STATION}/standard"),
+        (f"{RADAR_STATION} Loop",     "🔄",
+         f"https://radar.weather.gov/station/{RADAR_STATION}/loop"),
+        ("Regional",                  "🗺️",
+         f"https://radar.weather.gov/region/{RADAR_REGION}/standard"),
+    ]
+    embed = {
+        "title":       f"📡  NWS Radar — {LOCATION_NAME}",
+        "description": (f"**{RADAR_STATION}** ({RADAR_STATION_NAME}) is the "
+                        f"primary radar covering this area.\n"
+                        f"Use the buttons for the interactive viewer."),
+        "color":       0x1E90FF,
+        "fields": [{"name": "Coverage", "value": _coverage_label(), "inline": False}],
+        "footer": {"text": "NWS radar.weather.gov | SNJ Mesh Weather"},
+    }
+    img = await fetch_radar_image() if RADAR_ATTACH_IMAGE else None
+    if img:
+        fname = f"radar_{RADAR_STATION}.gif"
+        embed["image"] = {"url": f"attachment://{fname}"}
+        await interaction.followup.send(
+            embed=_embed(embed),
+            file=discord.File(io.BytesIO(img), filename=fname),
+            view=LinkButtonView(buttons), ephemeral=ephemeral)
+        return
+    if RADAR_ATTACH_IMAGE:
+        embed["footer"] = {"text": "NWS radar.weather.gov | live image "
+                                   "unavailable — use the buttons below"}
+    await interaction.followup.send(
+        embed=_embed(embed), view=LinkButtonView(buttons), ephemeral=ephemeral)
+
+
+@tree.command(name="alerts", description=f"Check active NWS alerts for {LOCATION_NAME}")
+async def slash_alerts(interaction: discord.Interaction):
+    _log_cmd(interaction, "alerts")
+    await interaction.response.defer()
+    await _respond_alerts(interaction, ephemeral=False)
 
 
 @tree.command(name="forecast",
@@ -2181,23 +2273,7 @@ async def slash_forecast(interaction: discord.Interaction,
                          zipcode: str | None = None):
     _log_cmd(interaction, "forecast", f"zip={zipcode or 'default'}")
     await interaction.response.defer()
-    lat = lon = None
-    location_label = LOCATION_NAME
-    if zipcode:
-        coords = await geocode_zip(zipcode.strip())
-        if coords is None:
-            await interaction.followup.send(
-                f"❌  Could not look up zip code `{zipcode}` — verify it's a valid US zip.")
-            return
-        lat, lon = coords; location_label = f"Zip {zipcode}"
-    periods = await fetch_forecast(lat, lon, fast=True)
-    if periods:
-        title = f"📅  7-Day Forecast — {location_label}" if zipcode else None
-        await interaction.followup.send(
-            embed=_embed(build_forecast_embed(periods, title)))
-    else:
-        await interaction.followup.send(
-            "❌  Could not fetch the NWS forecast — try again in a moment.")
+    await _respond_forecast(interaction, ephemeral=False, zipcode=zipcode)
 
 
 @tree.command(name="tides",
@@ -2267,44 +2343,7 @@ async def slash_hurricane(interaction: discord.Interaction):
 async def slash_radar(interaction: discord.Interaction):
     _log_cmd(interaction, "radar")
     await interaction.response.defer()
-
-    buttons = [
-        (f"{RADAR_STATION} Standard", "🌧️",
-         f"https://radar.weather.gov/station/{RADAR_STATION}/standard"),
-        (f"{RADAR_STATION} Loop",     "🔄",
-         f"https://radar.weather.gov/station/{RADAR_STATION}/loop"),
-        ("Regional",                  "🗺️",
-         f"https://radar.weather.gov/region/{RADAR_REGION}/standard"),
-    ]
-    embed = {
-        "title":       f"📡  NWS Radar — {LOCATION_NAME}",
-        "description": (f"**{RADAR_STATION}** ({RADAR_STATION_NAME}) is the "
-                        f"primary radar covering this area.\n"
-                        f"Use the buttons for the interactive viewer."),
-        "color":       0x1E90FF,
-        "fields": [{"name": "Coverage", "value": _coverage_label(), "inline": False}],
-        "footer": {"text": "NWS radar.weather.gov | SNJ Mesh Weather"},
-    }
-
-    # Attach the live image so the radar is visible without leaving Discord.
-    # Fetched and uploaded rather than hotlinked: Discord's CDN caches embed
-    # image URLs aggressively, which would serve a stale radar frame.
-    img = await fetch_radar_image() if RADAR_ATTACH_IMAGE else None
-    if img:
-        fname = f"radar_{RADAR_STATION}.gif"
-        embed["image"] = {"url": f"attachment://{fname}"}
-        await interaction.followup.send(
-            embed=_embed(embed),
-            file=discord.File(io.BytesIO(img), filename=fname),
-            view=LinkButtonView(buttons))
-        return
-
-    if RADAR_ATTACH_IMAGE:
-        embed["footer"] = {"text": "NWS radar.weather.gov | live image "
-                                   "unavailable — use the buttons below"}
-    await interaction.followup.send(
-        embed=_embed(embed),
-        view=LinkButtonView(buttons))
+    await _respond_radar(interaction, ephemeral=False)
 
 @tree.command(name="status", description="Bot operational status and service health")
 async def slash_status(interaction: discord.Interaction):

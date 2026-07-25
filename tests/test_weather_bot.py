@@ -533,6 +533,57 @@ class TestEmbedSendsAreClamped:
         assert "_clamp_embed" in block
 
 
+class TestConditionsDashboardButtons:
+    """The persistent conditions message carries Radar/Alerts/Forecast quick
+    buttons.  Their custom_ids must be stable (so they survive a restart) and
+    the handlers must reuse the shared responders rather than duplicate the
+    slash-command logic."""
+
+    view_src = SRC[SRC.index("class ConditionsRefreshView"):
+                   SRC.index("class ", SRC.index("class ConditionsRefreshView") + 10)]
+
+    def test_all_three_buttons_present(self):
+        for cid in ("snj_weather:radar", "snj_weather:alerts",
+                    "snj_weather:forecast"):
+            assert f'custom_id="{cid}"' in self.view_src, cid
+
+    def test_refresh_button_still_present(self):
+        assert 'custom_id="snj_weather:conditions_refresh"' in self.view_src
+
+    def test_custom_ids_are_unique(self):
+        ids = re.findall(r'custom_id="([^"]+)"', SRC)
+        assert len(ids) == len(set(ids)), "duplicate custom_id would break a view"
+
+    def test_view_stays_within_25_component_limit(self):
+        assert self.view_src.count("@discord.ui.button") <= 25
+
+    def test_buttons_reply_ephemerally(self):
+        """Quick-action buttons must not spam the shared channel."""
+        for handler in ("radar_btn", "alerts_btn", "forecast_btn"):
+            seg = self.view_src[self.view_src.index(f"def {handler}"):
+                                self.view_src.index(f"def {handler}") + 400]
+            assert "ephemeral=True" in seg, handler
+
+    def test_buttons_delegate_to_shared_responders(self):
+        assert "_respond_radar(interaction" in self.view_src
+        assert "_respond_alerts(interaction" in self.view_src
+        assert "_respond_forecast(interaction" in self.view_src
+
+
+class TestSharedRespondersSingleSourced:
+    """Each responder must have exactly one implementation, called by both the
+    slash command and the button — not copy-pasted."""
+
+    def test_slash_commands_delegate_to_responders(self):
+        assert "_respond_alerts(interaction, ephemeral=False)" in SRC
+        assert "_respond_forecast(interaction, ephemeral=False" in SRC
+        assert "_respond_radar(interaction, ephemeral=False)" in SRC
+
+    def test_responders_defined_once(self):
+        for name in ("_respond_alerts", "_respond_forecast", "_respond_radar"):
+            assert len(re.findall(rf"^async def {name}\(", SRC, re.M)) == 1, name
+
+
 # ============================================================================
 # Composite presence status
 # ============================================================================
