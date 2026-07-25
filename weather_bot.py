@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.9.0"
+__version__ = "2.9.1"
 
 import argparse
 import asyncio
@@ -790,7 +790,7 @@ class ConditionsRefreshView(discord.ui.View):
     # clicker) so the shared conditions message and the channel stay clean,
     # and reuses the same responder as the corresponding slash command.
     @discord.ui.button(label="Radar", emoji="📡",
-                       style=discord.ButtonStyle.primary,
+                       style=discord.ButtonStyle.secondary,
                        custom_id="snj_weather:radar")
     async def radar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "radar_button")
@@ -798,7 +798,7 @@ class ConditionsRefreshView(discord.ui.View):
         await _respond_radar(interaction, ephemeral=True)
 
     @discord.ui.button(label="Alerts", emoji="⚠️",
-                       style=discord.ButtonStyle.primary,
+                       style=discord.ButtonStyle.secondary,
                        custom_id="snj_weather:alerts")
     async def alerts_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "alerts_button")
@@ -806,7 +806,7 @@ class ConditionsRefreshView(discord.ui.View):
         await _respond_alerts(interaction, ephemeral=True)
 
     @discord.ui.button(label="Forecast", emoji="📅",
-                       style=discord.ButtonStyle.primary,
+                       style=discord.ButtonStyle.secondary,
                        custom_id="snj_weather:forecast")
     async def forecast_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "forecast_button")

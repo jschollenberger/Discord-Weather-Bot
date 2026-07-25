@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-07-25
+
+### Changed
+- The Radar, Alerts, and Forecast quick-action buttons on the conditions message now use the muted grey (`secondary`) style to match the Refresh button, instead of the solid blurple (`primary`) that made them look heavy and mismatched. The emoji on each button still gives it a distinct identity.
+
+
 ## [2.9.0] - 2026-07-21
 
 ### Added
@@ -105,7 +111,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.1...HEAD
+[2.9.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.6...v2.8.0
