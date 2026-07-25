@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-07-21
+
+### Added
+- The live conditions message now carries **Radar**, **Alerts**, and **Forecast** quick-action buttons alongside Refresh, turning it into a compact dashboard. Each button replies privately (ephemerally) to the person who clicked, so the shared message and the channel stay clean, and reuses the exact logic of the corresponding slash command. The buttons use stable custom IDs, so they keep working across bot restarts.
+
+### Changed
+- The `/alerts`, `/forecast`, and `/radar` command bodies were extracted into shared `_respond_*` helpers so the slash commands and the new buttons share a single implementation each rather than duplicating it.
+
+
 ## [2.8.1] - 2026-07-21
 
 ### Fixed
@@ -96,7 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.6...v2.8.0
 [2.7.6]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.5...v2.7.6

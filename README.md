@@ -10,7 +10,7 @@ Conditions are pulled from a personal weather station (PWS) via the Aeris/Xweath
 
 ## Features
 
-- **Live conditions** that update in place on a single pinned message — temperature, feels-like, humidity/dewpoint, wind, barometric trend, rain, UV, and sunrise/sunset — with a manual Refresh button
+- **Live conditions** that update in place on a single pinned message — temperature, feels-like, humidity/dewpoint, wind, barometric trend, rain, UV, and sunrise/sunset — with Refresh, Radar, Alerts, and Forecast buttons that reply privately to whoever clicks
 - **NWS alerts** posted automatically as they're issued, updated, or cancelled, filtered to Southern NJ by an explicit set of 10 NWS forecast zones and 7 county codes (see below) — not a heuristic — with a configurable severity threshold and a per-type suppression list
 - **Weekly outlook** auto-posted on a configurable day/time — forecast, tides, air quality, and active alert count
 - **Slash commands** for on-demand conditions, alerts, forecasts, tides, AQI, hurricane status, live radar imagery, and bot health
