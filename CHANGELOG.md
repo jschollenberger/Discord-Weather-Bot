@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-07-21
+
+### Fixed
+- Hardened all Discord embed sends against length limits. A `_clamp_embed()` helper now enforces every documented cap (title 256, description 4096, field name 256, field value 1024, footer 2048, 25 fields, 6000-char aggregate) on every embed, and all embed construction routes through a single `_embed()` helper. Previously a large multi-alert summary (10+ simultaneous alerts) could exceed the 4096-char description limit and fail the send, erroring the alert cycle.
+- `LinkButtonView` now caps at Discord's 25-component limit and truncates button labels to 80 characters, so an unusually long button list (e.g. many simultaneous NHC storms) can't fail the send.
+
+
 ## [2.8.0] - 2026-07-21
 
 ### Added
@@ -89,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.0...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...HEAD
+[2.8.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.6...v2.8.0
 [2.7.6]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.4...v2.7.5

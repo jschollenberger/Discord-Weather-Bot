@@ -436,6 +436,104 @@ class TestConfigWarnings:
 
 
 # ============================================================================
+# Discord embed limits  (a 400 on send otherwise)
+# ============================================================================
+
+class TestClampEmbed:
+    @staticmethod
+    def clamp(embed):
+        import logging
+        ns = {"log": logging.getLogger("test")}
+        fn = _exec_block("_D_TITLE, _D_DESC", "def _embed(", ns)["_clamp_embed"]
+        return fn(embed)
+
+    def test_title_capped_at_256(self):
+        assert len(self.clamp({"title": "X" * 300})["title"]) == 256
+
+    def test_description_capped_at_4096(self):
+        assert len(self.clamp({"description": "Y" * 5000})["description"]) == 4096
+
+    def test_field_value_capped_at_1024(self):
+        out = self.clamp({"fields": [{"name": "n", "value": "Z" * 2000}]})
+        assert len(out["fields"][0]["value"]) == 1024
+
+    def test_field_name_capped_at_256(self):
+        out = self.clamp({"fields": [{"name": "N" * 400, "value": "v"}]})
+        assert len(out["fields"][0]["name"]) == 256
+
+    def test_footer_capped(self):
+        out = self.clamp({"footer": {"text": "F" * 3000}})
+        assert len(out["footer"]["text"]) <= 2048
+
+    def test_field_count_capped_at_25(self):
+        out = self.clamp({"fields": [{"name": str(i), "value": "v"}
+                                     for i in range(40)]})
+        assert len(out["fields"]) == 25
+
+    def test_empty_field_name_becomes_zero_width(self):
+        """Discord rejects a truly empty field name."""
+        out = self.clamp({"fields": [{"name": "", "value": ""}]})
+        assert out["fields"][0]["name"] == "\u200b"
+        assert out["fields"][0]["value"] == "\u200b"
+
+    def test_aggregate_capped_at_6000(self):
+        big = {"title": "T" * 250, "description": "D" * 4000,
+               "fields": [{"name": "n" * 250, "value": "v" * 1000}
+                          for _ in range(3)]}
+        out = self.clamp(big)
+        total = (len(out["title"]) + len(out["description"]) +
+                 sum(len(f["name"]) + len(f["value"]) for f in out["fields"]))
+        assert total <= 6000
+
+    def test_none_description_does_not_crash(self):
+        assert self.clamp({"description": None}).get("description") == ""
+
+    def test_short_embed_unchanged(self):
+        e = {"title": "Hi", "description": "short",
+             "fields": [{"name": "a", "value": "b"}]}
+        out = self.clamp(dict(e))
+        assert out["title"] == "Hi" and out["fields"][0]["value"] == "b"
+
+    def test_truncation_adds_ellipsis(self):
+        assert self.clamp({"title": "X" * 300})["title"].endswith("…")
+
+
+class TestButtonViewCap:
+    """Discord allows at most 25 components per view and 80-char labels."""
+
+    @staticmethod
+    def count_source_guard():
+        block = SRC[SRC.index("class LinkButtonView"):
+                    SRC.index("class ConditionsRefreshView")]
+        return block
+
+    def test_source_caps_at_25(self):
+        assert "[:25]" in self.count_source_guard()
+
+    def test_source_truncates_label(self):
+        assert "label[:80]" in self.count_source_guard()
+
+    def test_source_skips_empty_urls(self):
+        assert "if u]" in self.count_source_guard()
+
+
+class TestEmbedSendsAreClamped:
+    """Every embed must be built via _embed() (which clamps) rather than a raw
+    discord.Embed.from_dict(), so no send can 400 on a length limit."""
+
+    def test_only_one_raw_from_dict_the_definition(self):
+        raw = re.findall(r"discord\.Embed\.from_dict", SRC)
+        # exactly one: the call inside _embed() itself
+        assert len(raw) == 1, (
+            f"found {len(raw)} raw discord.Embed.from_dict calls; all embed "
+            f"construction should go through _embed()")
+
+    def test_embed_helper_calls_clamp(self):
+        block = SRC[SRC.index("def _embed("):SRC.index("def _embed(") + 300]
+        assert "_clamp_embed" in block
+
+
+# ============================================================================
 # Composite presence status
 # ============================================================================
 
