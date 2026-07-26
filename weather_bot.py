@@ -28,7 +28,9 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.0.1"
+__version__ = "3.1.0"
+__author__  = "Jason Schollenberger (KD2QED)"
+SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
 import argparse
 import asyncio
@@ -2023,6 +2025,7 @@ _HELP_EMBED = {
         {"name":"/radar",     "value":f"Live NWS {RADAR_STATION} radar for {LOCATION_NAME} (opens in browser).","inline":False},
         {"name":"/status",    "value":"Bot operational status, last update times, circuit-breaker health.","inline":False},
         {"name":"/help",      "value":"Show this message.","inline":False},
+        {"name":"ℹ️ About",    "value":f"Open-source (GPLv3) · by {__author__} · [Source on GitHub]({SOURCE_URL})","inline":False},
     ],
     "footer":{"text":f"Weekly outlook auto-posts {_fmt_weekly_when()} | Discord Weather Bot"},
 }
@@ -2153,7 +2156,9 @@ async def on_ready():
 async def slash_help(interaction: discord.Interaction):
     _log_cmd(interaction, "help")
     await interaction.response.send_message(
-        embed=_embed(_HELP_EMBED), ephemeral=True)
+        embed=_embed(_HELP_EMBED),
+        view=LinkButtonView([("View on GitHub", "🐙", SOURCE_URL)]),
+        ephemeral=True)
 
 
 @tree.command(name="conditions", description="Get weather conditions from a PWS station")
