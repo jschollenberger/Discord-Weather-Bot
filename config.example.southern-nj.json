@@ -1,5 +1,6 @@
 {
     "pws_station_id":           "YOUR_PWS_STATION_ID",
+    "pws_station_url":          null,
     "pws_client_id":            "YOUR_PWS_CLIENT_ID",
     "pws_client_secret":        "YOUR_PWS_CLIENT_SECRET",
 

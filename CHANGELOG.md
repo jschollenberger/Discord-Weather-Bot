@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-07-26
+
+### Fixed
+- The `/conditions` and `/status` PWSweather links used the wrong path (`/station/mid/…`); they now use `/station/pws/<station-id>`, matching pwsweather.com's station-page URLs.
+
+### Added
+- Optional `pws_station_url` config key to set the exact public page for the default station's `/conditions` and `/status` links, overriding the derived URL — for a station whose PWSweather page id differs from `pws_station_id`, or a page hosted elsewhere.
+
 ## [3.1.0] - 2026-07-26
 
 ### Added
@@ -146,7 +154,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.1...HEAD
+[3.1.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...v3.0.0

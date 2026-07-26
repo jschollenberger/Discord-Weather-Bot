@@ -143,6 +143,7 @@ Startup validates `config.json` and exits with a specific, readable error for an
 |---|---|---|
 | `pws_station_id` | — | **Required.** Your Aeris/Xweather PWS station ID |
 | `pws_client_id` / `pws_client_secret` | — | **Required.** Aeris/Xweather API credentials |
+| `pws_station_url` | (derived) | Public PWSweather page linked from `/conditions` and `/status`. Defaults to `pwsweather.com/station/pws/<pws_station_id>`; set explicitly if your station's public page differs |
 | `discord_bot_token` | — | **Required.** From the Discord Developer Portal |
 | `discord_channel_id` | — | Channel the bot posts conditions and alerts to |
 | `discord_guild_id` | none | Optional — enables near-instant slash-command sync for one server instead of the ~1 hour global sync |

@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.1.0"
+__version__ = "3.1.1"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -271,6 +271,11 @@ def _validate_config(cfg: dict) -> list[str]:
         errs.append(f"  x radar_station: must be a 4-letter NWS radar code "
                     f"(e.g. KDIX), got {rad!r}")
 
+    # Optional public page for the /conditions & /status station links.
+    psu = cfg.get("pws_station_url")
+    if psu is not None and not (isinstance(psu, str) and psu.startswith(("http://", "https://"))):
+        errs.append(f"  x pws_station_url: must be an http(s) URL string, got {psu!r}")
+
     # An unrecognised value would silently fall through to global-only sync.
     csync = str(cfg.get("command_sync", "auto")).lower()
     if csync not in ("auto", "global", "guild"):
@@ -371,6 +376,7 @@ if _warns:
         log.warning(f"config: {_w.lstrip(' !')}")
 
 PWS_STATION_ID          = _cfg["pws_station_id"].upper()
+PWS_STATION_URL         = _cfg.get("pws_station_url")   # public page override; else derived
 PWS_CLIENT_ID           = _cfg["pws_client_id"]
 PWS_CLIENT_SECRET       = _cfg["pws_client_secret"]
 DISCORD_BOT_TOKEN       = _cfg["discord_bot_token"]
@@ -888,8 +894,11 @@ def _wind_dir(deg: float) -> str:
 
 def _pws_station_url(station_id: str | None = None) -> str:
     """Public PWSweather.com page for a PWS — the Aeris/Xweather PWS network's
-    public site.  Uses the queried station if given, else the default."""
-    return f"https://www.pwsweather.com/station/mid/{(station_id or PWS_STATION_ID).lower()}"
+    public site.  A queried station is derived by id; the default station uses
+    the configured pws_station_url if set, else the derived form."""
+    if station_id:
+        return f"https://www.pwsweather.com/station/pws/{station_id.lower()}"
+    return PWS_STATION_URL or f"https://www.pwsweather.com/station/pws/{PWS_STATION_ID.lower()}"
 
 async def fetch_conditions(station_id: str | None = None,
                            fast: bool = False) -> dict | None:

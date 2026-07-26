@@ -80,11 +80,19 @@ class TestPureHelpers:
         assert wb._condition_emoji("Heavy Snow") == "❄️"
         assert wb._condition_emoji(None) == "🌤️"
 
-    def test_pws_station_url(self, wb):
-        assert (wb._pws_station_url("F7263")
-                == "https://www.pwsweather.com/station/mid/f7263")   # lower-cased
+    def test_pws_station_url(self, wb, monkeypatch):
+        # queried station: derived by id under the /pws/ path, lower-cased
+        assert (wb._pws_station_url("KNJMAYSL16")
+                == "https://www.pwsweather.com/station/pws/knjmaysl16")
+        # default station: derived when no override is configured
+        monkeypatch.setattr(wb, "PWS_STATION_URL", None)
         assert wb._pws_station_url() == (
-            f"https://www.pwsweather.com/station/mid/{wb.PWS_STATION_ID.lower()}")
+            f"https://www.pwsweather.com/station/pws/{wb.PWS_STATION_ID.lower()}")
+        # default station: an explicit pws_station_url override wins
+        monkeypatch.setattr(wb, "PWS_STATION_URL",
+                            "https://www.pwsweather.com/station/pws/knjmaysl16")
+        assert (wb._pws_station_url()
+                == "https://www.pwsweather.com/station/pws/knjmaysl16")
 
     def test_barometric_tendency_collecting(self, wb, monkeypatch):
         monkeypatch.setattr(wb, "_state", {"pressure_history": []})
