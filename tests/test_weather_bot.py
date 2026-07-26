@@ -1,5 +1,5 @@
 """
-Regression tests for SNJ Mesh Weather Bot.
+Regression tests for Discord Weather Bot.
 
 These cover the pure logic that has actually bitten in production:
   * the coverage-area filter        (v2.7 posted out-of-area alerts)
@@ -46,7 +46,7 @@ class TestVersion:
     def test_runtime_strings_interpolate_version(self):
         """The banner, status footer, UA and startup log must use
         __version__ rather than a baked-in literal."""
-        for anchor in ("SNJMeshWeatherBot/{__version__}",
+        for anchor in ("DiscordWeatherBot/{__version__}",
                        "Weather Bot v{__version__}",
                        'f"v{__version__} | Started'):
             assert anchor in SRC, anchor
@@ -543,12 +543,12 @@ class TestConditionsDashboardButtons:
                    SRC.index("class ", SRC.index("class ConditionsRefreshView") + 10)]
 
     def test_all_three_buttons_present(self):
-        for cid in ("snj_weather:radar", "snj_weather:alerts",
-                    "snj_weather:forecast"):
+        for cid in ("weather_bot:radar", "weather_bot:alerts",
+                    "weather_bot:forecast"):
             assert f'custom_id="{cid}"' in self.view_src, cid
 
     def test_refresh_button_still_present(self):
-        assert 'custom_id="snj_weather:conditions_refresh"' in self.view_src
+        assert 'custom_id="weather_bot:conditions_refresh"' in self.view_src
 
     def test_custom_ids_are_unique(self):
         ids = re.findall(r'custom_id="([^"]+)"', SRC)

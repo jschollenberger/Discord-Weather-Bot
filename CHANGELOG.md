@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-26
+
+### Changed
+- **Renamed the bot to "Discord Weather Bot"** across its entire user-facing surface: the `/help` and `/status` titles, every embed footer, the console banner, the startup log, and the outbound identifiers (the User-Agent and the NOAA CO-OPS `application` parameter, now `DiscordWeatherBot`). The `/help` title drops the personal byline. Reflects the project's growth from a single mesh community into a general-purpose bot that works for any US location you configure.
+- **BREAKING — environment variables renamed:** `SNJ_BOT_DIR` / `SNJ_BOT_CONFIG` are now `WEATHER_BOT_DIR` / `WEATHER_BOT_CONFIG`. Update any launch or service configuration that sets them. (The `--data-dir` / `--config` command-line flags are unchanged.)
+- **BREAKING — button custom IDs renamed** from `snj_weather:*` to `weather_bot:*`. The persistent view now matches the new IDs, so the Refresh/Radar/Alerts/Forecast buttons on a conditions message posted by an older version stop responding after upgrading. Delete the pinned conditions message (or wait for the next automatic repost, at most `conditions_repost_hours` — default 4h) and the bot posts a fresh one with working buttons.
+- README rewritten to present the bot as configurable for any US location, with Southern NJ (the seven counties served by NWS Mount Holly) shipped as the example default rather than the sole target.
+
+### Removed
+- The last region-specific string literal that was not already config-driven — a hardcoded `region="NJ"` label passed to the sunrise/sunset provider (cosmetic; astral uses only the latitude/longitude).
+
 ## [2.9.2] - 2026-07-25
 
 ### Fixed
@@ -119,7 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...v3.0.0
 [2.9.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...v2.9.0

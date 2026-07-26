@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SNJ Mesh Weather Bot — a Discord bot for a configurable NWS coverage area.
+Discord Weather Bot — a Discord bot for a configurable NWS coverage area.
 
 Posts live conditions from a personal weather station, NWS alerts, tides, air
 quality and Atlantic tropical storm updates to a Discord channel, and answers
@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.9.2"
+__version__ = "3.0.0"
 
 import argparse
 import asyncio
@@ -64,33 +64,33 @@ except ImportError:
 # checkout serve several instances (e.g. one guild per directory):
 #
 #   python weather_bot.py --data-dir ~/bots/atlantic
-#   SNJ_BOT_DIR=~/bots/atlantic python weather_bot.py
+#   WEATHER_BOT_DIR=~/bots/atlantic python weather_bot.py
 #
 # Precedence: command line > environment > script directory.
 def _resolve_paths() -> tuple[Path, Path]:
     ap = argparse.ArgumentParser(
         prog="weather_bot.py",
-        description="SNJ Mesh Weather Bot — Discord weather bot for a "
+        description="Discord Weather Bot — a Discord bot for a "
                     "configurable NWS coverage area.")
     ap.add_argument("--data-dir", metavar="DIR",
                     help="directory holding config.json, state.json and the "
                          "log file (default: alongside this script; "
-                         "env: SNJ_BOT_DIR)")
+                         "env: WEATHER_BOT_DIR)")
     ap.add_argument("--config", metavar="FILE",
                     help="path to the config file "
                          "(default: <data-dir>/config.json; "
-                         "env: SNJ_BOT_CONFIG)")
+                         "env: WEATHER_BOT_CONFIG)")
     # parse_known_args so an unrecognised flag never hard-fails startup
     args, _unknown = ap.parse_known_args()
 
-    data_dir = Path(args.data_dir or os.environ.get("SNJ_BOT_DIR")
+    data_dir = Path(args.data_dir or os.environ.get("WEATHER_BOT_DIR")
                     or Path(__file__).parent).expanduser()
     try:
         data_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         sys.exit(f"ERROR: could not create data directory {data_dir}: {e}")
 
-    cfg_file = Path(args.config or os.environ.get("SNJ_BOT_CONFIG")
+    cfg_file = Path(args.config or os.environ.get("WEATHER_BOT_CONFIG")
                     or data_dir / "config.json").expanduser()
     return cfg_file, data_dir
 
@@ -442,7 +442,7 @@ RADAR_IMAGE_BASE    = "https://radar.weather.gov/ridge/standard"
 _RADAR_MAX_BYTES    = 8 * 1024 * 1024   # stay under Discord's attachment limit
 AIRNOW_FORECAST_URL = "https://www.airnowapi.org/aq/forecast/latLong/"
 NHC_STORMS_URL      = "https://www.nhc.noaa.gov/CurrentStorms.json"
-SNJ_UA              = f"SNJMeshWeatherBot/{__version__}"
+USER_AGENT          = f"DiscordWeatherBot/{__version__}"
 
 # ---------------------------------------------------------------------------
 # Timezone
@@ -588,7 +588,7 @@ _session: aiohttp.ClientSession | None = None
 async def _get_session() -> aiohttp.ClientSession:
     global _session
     if _session is None or _session.closed:
-        _session = aiohttp.ClientSession(headers={"User-Agent": SNJ_UA})
+        _session = aiohttp.ClientSession(headers={"User-Agent": USER_AGENT})
     return _session
 
 async def _close_session():
@@ -761,7 +761,7 @@ class ConditionsRefreshView(discord.ui.View):
 
     @discord.ui.button(label="Refresh", emoji="🔄",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:conditions_refresh")
+                       custom_id="weather_bot:conditions_refresh")
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "refresh_button")
         uid     = interaction.user.id
@@ -794,7 +794,7 @@ class ConditionsRefreshView(discord.ui.View):
     # and reuses the same responder as the corresponding slash command.
     @discord.ui.button(label="Radar", emoji="📡",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:radar")
+                       custom_id="weather_bot:radar")
     async def radar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "radar_button")
         await interaction.response.defer(ephemeral=True)
@@ -802,7 +802,7 @@ class ConditionsRefreshView(discord.ui.View):
 
     @discord.ui.button(label="Alerts", emoji="⚠️",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:alerts")
+                       custom_id="weather_bot:alerts")
     async def alerts_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "alerts_button")
         await interaction.response.defer(ephemeral=True)
@@ -810,7 +810,7 @@ class ConditionsRefreshView(discord.ui.View):
 
     @discord.ui.button(label="Forecast", emoji="📅",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:forecast")
+                       custom_id="weather_bot:forecast")
     async def forecast_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "forecast_button")
         await interaction.response.defer(ephemeral=True)
@@ -1036,7 +1036,7 @@ def _barometric_tendency() -> str:
 def _sun_times() -> dict | None:
     if not _ASTRAL_OK: return None
     try:
-        loc = _AstralLocation(name=LOCATION_NAME, region="NJ",
+        loc = _AstralLocation(name=LOCATION_NAME, region="US",
                               timezone="America/New_York",
                               latitude=FORECAST_LAT, longitude=FORECAST_LON)
         s   = _astral_sun(loc.observer, date=_now_et().date(), tzinfo=_TZ)
@@ -1265,7 +1265,7 @@ def build_alert_embed(feature: dict) -> dict:
         "description": props.get("headline",""),
         "fields":      [{"name":"📍 Areas","value":area[:1024],"inline":False},
                         {"name":"⏰ Expires","value":exp,"inline":True}],
-        "footer":      {"text":"SNJ Mesh Weather | Click a button for full details"},
+        "footer":      {"text":"Discord Weather Bot | Click a button for full details"},
     }
 
 def build_update_embed(feature: dict) -> dict:
@@ -1314,7 +1314,7 @@ async def _send_cleared(message_id, event: str, area: str, cancelled: bool = Fal
     action = "been explicitly cancelled" if cancelled else "expired or been cancelled"
     ed     = {"title":f"✅  CLEARED — {emoji} {event}",
               "description":f"The **{event}** for **{area}** has {action}.",
-              "color":0x57F287,"footer":{"text":"NWS | SNJ Mesh Weather"}}
+              "color":0x57F287,"footer":{"text":"NWS | Discord Weather Bot"}}
     sent   = False
     if _channel and message_id:
         try:
@@ -1393,7 +1393,7 @@ async def fetch_tides(days: int = 2, station_id: str | None = None) -> list | No
         data = await _http_get(NOAA_TIDES_BASE, service="noaa_tides", params={
             "station":    sid, "product":"predictions", "datum":"MLLW",
             "time_zone":  "lst_ldt", "interval":"hilo", "units":"english",
-            "application":"SNJMeshWeatherBot", "format":"json",
+            "application":"DiscordWeatherBot", "format":"json",
             "begin_date": now_et.strftime("%Y%m%d"),
             "end_date":   (now_et+timedelta(days=max(days,1))).strftime("%Y%m%d"),
         })
@@ -1432,7 +1432,7 @@ def build_tides_embed(predictions: list, station_id: str | None = None,
     return {"title":f"🌊  Tides — {sname}",
             "description":f"NOAA Station `{sid}` · All times local (ET)",
             "color":0x006994,"fields":fields,
-            "footer":{"text":"NOAA CO-OPS | SNJ Mesh Weather"}}
+            "footer":{"text":"NOAA CO-OPS | Discord Weather Bot"}}
 
 # ---------------------------------------------------------------------------
 # EPA AirNow AQI
@@ -1520,7 +1520,7 @@ def build_aqi_embed(obs: list, forecast: list | None = None) -> dict:
     return {"title":f"{_aqi_dot(best_num)}  Air Quality — {area}",
             "description":f"Overall: **{_AQI_LABEL.get(best_num,'Unknown')}** (AQI {overall.get('AQI','—')})",
             "color":_aqi_color(best_num),"fields":obs_fields+fcst_fields+health,
-            "footer":{"text":"EPA AirNow | SNJ Mesh Weather"}}
+            "footer":{"text":"EPA AirNow | Discord Weather Bot"}}
 
 def build_aqi_alert_embed(data: list, improving: bool = False) -> dict:
     overall = max(data,key=lambda x:x.get("AQI",0))
@@ -1530,13 +1530,13 @@ def build_aqi_alert_embed(data: list, improving: bool = False) -> dict:
         return {"title":"🟢  Air Quality Improved",
                 "description":f"AQI returned to **{_AQI_LABEL.get(num,'acceptable')}** "
                               f"(AQI {overall.get('AQI','—')}) in {area}.",
-                "color":0x57F287,"footer":{"text":"EPA AirNow | SNJ Mesh Weather"}}
+                "color":0x57F287,"footer":{"text":"EPA AirNow | Discord Weather Bot"}}
     return {"title":f"{_aqi_dot(num)}  AIR QUALITY ALERT — {_AQI_LABEL.get(num,'Unhealthy')}",
             "description":f"AQI has reached **{overall.get('AQI','—')}** in {area}.\n{_AQI_HEALTH.get(num,'')}",
             "color":_aqi_color(num),
             "fields":[{"name":"Area","value":area,"inline":True},
                       {"name":"AQI","value":str(overall.get("AQI","—")),"inline":True}],
-            "footer":{"text":"EPA AirNow | SNJ Mesh Weather"}}
+            "footer":{"text":"EPA AirNow | Discord Weather Bot"}}
 
 # ---------------------------------------------------------------------------
 # NHC Hurricane
@@ -1591,7 +1591,7 @@ def build_hurricane_embed(storms: list | None) -> dict:
     max_mph = max(_knots_to_mph(s.get("intensity",0)) for s in storms)
     return {"title":"🌀  Active Atlantic Tropical Systems","description":season,
             "color":0xFF4500 if max_mph>=74 else 0xFFB347,"fields":fields,
-            "footer":{"text":"NHC | nhc.noaa.gov | SNJ Mesh Weather"}}
+            "footer":{"text":"NHC | nhc.noaa.gov | Discord Weather Bot"}}
 
 # ---------------------------------------------------------------------------
 # NWS 7-day Forecast
@@ -1650,7 +1650,7 @@ def build_forecast_embed(periods: list, title_override: str | None = None) -> di
                        "inline":True})
     return {"title":title_override or f"📅  7-Day Forecast — {LOCATION_NAME}",
             "color":0x5865F2,"fields":fields,
-            "footer":{"text":"NWS via api.weather.gov | SNJ Mesh Weather"}}
+            "footer":{"text":"NWS via api.weather.gov | Discord Weather Bot"}}
 
 # ---------------------------------------------------------------------------
 # Weekly Summary
@@ -1693,7 +1693,7 @@ def build_weekly_summary_embed(periods, aqi_data, tides, active_alerts: int) -> 
     return {"title":f"📊  Weekly Outlook — {LOCATION_NAME}",
             "description":f"*{now_et.strftime('%b %d')} – {(now_et+timedelta(days=6)).strftime('%b %d, %Y')}*",
             "color":0x5865F2,"fields":fields,
-            "footer":{"text":"NWS · NOAA Tides · EPA AirNow | SNJ Mesh Weather"}}
+            "footer":{"text":"NWS · NOAA Tides · EPA AirNow | Discord Weather Bot"}}
 
 # ---------------------------------------------------------------------------
 # Async tasks
@@ -1870,8 +1870,8 @@ async def _post_weekly_summary():
     aqi_data   = await fetch_aqi() if AIRNOW_KEY else None
     tides      = await fetch_tides(7)
     all_alerts = await fetch_alerts() or []
-    active_snj = sum(1 for f in all_alerts if _in_coverage(f))
-    await _send(build_weekly_summary_embed(periods,aqi_data,tides,active_snj))
+    active_local = sum(1 for f in all_alerts if _in_coverage(f))
+    await _send(build_weekly_summary_embed(periods,aqi_data,tides,active_local))
     _event("📊  Weekly summary posted")
 
 # ---------------------------------------------------------------------------
@@ -2005,7 +2005,7 @@ def _fmt_weekly_when() -> str:
     return f"{days[WEEKLY_DAY]} {h12} {ampm} ET"
 
 _HELP_EMBED = {
-    "title": "🌤️  SNJ Mesh Weather Bot by compy / KD2QED",
+    "title": "🌤️  Discord Weather Bot",
     "description": (
         f"Live conditions from **{PWS_STATION_ID}** in **{LOCATION_NAME}**.\n"
         f"Conditions updated every **{CONDITIONS_UPDATE_MINS} min** · "
@@ -2024,7 +2024,7 @@ _HELP_EMBED = {
         {"name":"/status",    "value":"Bot operational status, last update times, circuit-breaker health.","inline":False},
         {"name":"/help",      "value":"Show this message.","inline":False},
     ],
-    "footer":{"text":f"Weekly outlook auto-posts {_fmt_weekly_when()} | SNJ Mesh Weather"},
+    "footer":{"text":f"Weekly outlook auto-posts {_fmt_weekly_when()} | Discord Weather Bot"},
 }
 
 
@@ -2131,7 +2131,7 @@ async def on_ready():
     ch_name   = f"#{_channel.name}" if _channel else "unresolved"
     astral_ok = "enabled" if _ASTRAL_OK else "disabled (pip install astral)"
     print(f"\n{'─'*62}")
-    print(f"  SNJ Mesh Weather Bot v{__version__}|  {LOCATION_NAME}")
+    print(f"  Discord Weather Bot v{__version__}|  {LOCATION_NAME}")
     print(f"  Station   : {PWS_STATION_ID}")
     print(f"  Channel   : {ch_name}")
     print(f"  Guild     : {DISCORD_GUILD_ID or 'global sync'}")
@@ -2252,7 +2252,7 @@ async def _respond_radar(interaction: discord.Interaction, *, ephemeral: bool):
                         f"Use the buttons for the interactive viewer."),
         "color":       0x1E90FF,
         "fields": [{"name": "Coverage", "value": _coverage_label(), "inline": False}],
-        "footer": {"text": "NWS radar.weather.gov | SNJ Mesh Weather"},
+        "footer": {"text": "NWS radar.weather.gov | Discord Weather Bot"},
     }
     img = await fetch_radar_image() if RADAR_ATTACH_IMAGE else None
     if img:
@@ -2426,7 +2426,7 @@ async def slash_status(interaction: discord.Interaction):
         {"name":"🌐 HTTP (aiohttp)",  "value":"Native async",                             "inline":True},
         {"name":"📶 Circuit breakers","value":"\n".join(cb_lines) if cb_lines else "✅ All services nominal","inline":False},
     ]
-    embed = {"title":f"📊  SNJ Mesh Weather Bot — Status · {LOCATION_NAME}",
+    embed = {"title":f"📊  Discord Weather Bot — Status · {LOCATION_NAME}",
              "color":0x57F287 if not cb_lines else 0xFFD700,
              "fields":fields,
              "footer":{"text":f"v{__version__} | Started {start_str}"}}
@@ -2439,7 +2439,7 @@ async def slash_status(interaction: discord.Interaction):
 if __name__ == "__main__":
     if DISCORD_BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         sys.exit("ERROR: discord_bot_token not set in config.json.")
-    log.info(f"SNJ Mesh Weather Bot v{__version__} starting")
+    log.info(f"Discord Weather Bot v{__version__} starting")
     try:
         bot.run(DISCORD_BOT_TOKEN, log_handler=None)
     except discord.LoginFailure:
