@@ -2157,7 +2157,10 @@ async def slash_help(interaction: discord.Interaction):
     _log_cmd(interaction, "help")
     await interaction.response.send_message(
         embed=_embed(_HELP_EMBED),
-        view=LinkButtonView([("View on GitHub", "🐙", SOURCE_URL)]),
+        view=LinkButtonView([
+            ("View on GitHub",  "🐙", SOURCE_URL),
+            ("Report an issue", "🐞", f"{SOURCE_URL}/issues"),
+        ]),
         ephemeral=True)
 
 
@@ -2234,8 +2237,13 @@ async def _respond_forecast(interaction: discord.Interaction, *, ephemeral: bool
     periods = await fetch_forecast(lat, lon, fast=True)
     if periods:
         title = f"📅  7-Day Forecast — {location_label}" if zipcode else None
+        gov_lat = lat if lat is not None else FORECAST_LAT
+        gov_lon = lon if lon is not None else FORECAST_LON
+        gov_url = f"https://forecast.weather.gov/MapClick.php?lat={gov_lat}&lon={gov_lon}"
         await interaction.followup.send(
-            embed=_embed(build_forecast_embed(periods, title)), ephemeral=ephemeral)
+            embed=_embed(build_forecast_embed(periods, title)),
+            view=LinkButtonView([("Full forecast on weather.gov", "🌐", gov_url)]),
+            ephemeral=ephemeral)
     else:
         await interaction.followup.send(
             "❌  Could not fetch the NWS forecast — try again in a moment.",

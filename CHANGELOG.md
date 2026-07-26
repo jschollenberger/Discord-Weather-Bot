@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.1.0] - 2026-07-26
 
 ### Added
-- `/help` now credits the project and links to its source from inside Discord: an "About" field reading `Discord Weather Bot v<version> by <author> · Source on GitHub` (the last part a clickable link) plus a **View on GitHub** button. The repository URL lives in a new `SOURCE_URL` constant, with `__author__` alongside `__version__`. The now-redundant "Discord Weather Bot" tag was dropped from the `/help` footer, since the About line sits directly above it.
+- `/help` now credits the project and links to its source from inside Discord: an "About" field reading `Discord Weather Bot v<version> by <author> · Source on GitHub` (the last part a clickable link) plus **View on GitHub** and **Report an issue** buttons. The repository URL lives in a new `SOURCE_URL` constant, with `__author__` alongside `__version__`. The now-redundant "Discord Weather Bot" tag was dropped from the `/help` footer, since the About line sits directly above it.
+- `/forecast` now attaches a **Full forecast on weather.gov** button linking the official NWS point-forecast page for the shown location (the configured default or a queried zip), completing the pattern where every data command links its authoritative source.
 
 ## [3.0.1] - 2026-07-26
 

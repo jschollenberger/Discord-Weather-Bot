@@ -881,3 +881,16 @@ class TestAccreditation:
         block = SRC[SRC.index("async def slash_help"):
                     SRC.index("async def slash_conditions")]
         assert "LinkButtonView" in block and "SOURCE_URL" in block
+        assert "/issues" in block                # Report an issue button
+
+
+# ============================================================================
+# Data-source link buttons  (every data command links its authoritative source)
+# ============================================================================
+
+class TestForecastSourceLink:
+    def test_forecast_links_weather_gov(self):
+        block = SRC[SRC.index("async def _respond_forecast"):
+                    SRC.index("async def _respond_radar")]
+        assert "forecast.weather.gov" in block
+        assert "LinkButtonView" in block
