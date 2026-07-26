@@ -2430,6 +2430,17 @@ async def slash_status(interaction: discord.Interaction):
     else:
         alert_val = "None"
 
+    # Weather-station (PWS) block: identity, public page, last reading, feed health
+    pws_ok   = _cb_ok("pws")
+    _sky     = _state.get("last_sky")
+    _temp    = _state.get("last_temp_f")
+    _reading = " · ".join(
+        ([_sky] if isinstance(_sky, str) and _sky else [])
+        + ([f"{round(_temp)}°F"] if isinstance(_temp, (int, float)) else [])) or "—"
+    pws_val  = (f"`{PWS_STATION_ID}` · [View on PWSweather]({_pws_station_url()})\n"
+                f"Last reading: {_reading} · "
+                f"{'✅ reporting' if pws_ok else '⚠️ feed backed off'}")
+
     fields = [
         {"name":"⏱️ Uptime",          "value":str(uptime),                                "inline":True},
         {"name":"📍 Channel",         "value":f"<#{ch_id}>",                              "inline":True},
@@ -2438,6 +2449,7 @@ async def slash_status(interaction: discord.Interaction):
                                               f"{len(_COVERAGE_ZONES)} zone"
                                               f"{'s' if len(_COVERAGE_ZONES)!=1 else ''} · "
                                               f"{RADAR_STATION} radar",     "inline":False},
+        {"name":"📡 Weather Station", "value":pws_val,                                     "inline":False},
         {"name":"🌡️ Conditions",      "value":f"{_ago(last_cond)}\nNext ~{int(cond_next//60)}m","inline":True},
         {"name":"⚠️ Alert check",     "value":f"{_ago(last_alrt)}\nNext ~{int(alrt_next//60)}m","inline":True},
         {"name":"🚨 Active alerts",   "value":alert_val,                                  "inline":False},

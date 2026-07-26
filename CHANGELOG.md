@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/help` now credits the project and links to its source from inside Discord: an "About" field reading `Discord Weather Bot v<version> by <author> · Source on GitHub` (the last part a clickable link) plus **View on GitHub** and **Report an issue** buttons. The repository URL lives in a new `SOURCE_URL` constant, with `__author__` alongside `__version__`. The now-redundant "Discord Weather Bot" tag was dropped from the `/help` footer, since the About line sits directly above it.
 - `/forecast` now attaches a **Full forecast on weather.gov** button linking the official NWS point-forecast page for the shown location (the configured default or a queried zip).
 - `/conditions` now attaches a **View on PWSweather** button linking the station's public page on pwsweather.com — the Aeris/Xweather PWS network's public site — derived from the shown station (default or queried). With this, every data command (`/conditions`, `/forecast`, `/radar`, `/tides`, `/aqi`, `/hurricane`, and alerts) links its authoritative source.
+- `/status` gains a **Weather Station** block: the PWS station ID, a link to its PWSweather page, the last reading (sky · temperature), and whether the station feed is currently reporting.
 
 ## [3.0.1] - 2026-07-26
 

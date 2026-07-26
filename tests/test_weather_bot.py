@@ -902,3 +902,11 @@ class TestConditionsSourceLink:
         block = SRC[SRC.index("async def slash_conditions"):
                     SRC.index("async def _respond_alerts")]
         assert "_pws_station_url" in block and "LinkButtonView" in block
+
+
+class TestStatusPwsBlock:
+    def test_status_has_weather_station_block(self):
+        block = SRC[SRC.index("async def slash_status"):]
+        assert "Weather Station" in block          # the field name
+        assert "PWS_STATION_ID" in block           # station id shown
+        assert "_pws_station_url" in block         # link to its page
