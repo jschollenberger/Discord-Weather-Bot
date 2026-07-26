@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.9.1"
+__version__ = "2.9.2"
 
 import argparse
 import asyncio
@@ -350,9 +350,12 @@ def _validate_coverage(cov) -> list[str]:
 _cfg = _load_config()
 
 # Register credentials with the log redactor before anything can log them.
+# discord_webhook is an optional URL whose last path segment is a token; aiohttp
+# puts the full URL in its exception text, so it must be redacted too.
 _RedactFilter.set_secrets(
     _cfg.get("pws_client_id"), _cfg.get("pws_client_secret"),
-    _cfg.get("discord_bot_token"), _cfg.get("airnow_api_key"))
+    _cfg.get("discord_bot_token"), _cfg.get("airnow_api_key"),
+    _cfg.get("discord_webhook"))
 
 _errs = _validate_config(_cfg)
 if _errs:
@@ -1993,6 +1996,14 @@ async def _on_app_command_error(interaction: discord.Interaction,
     except Exception:
         pass   # interaction may have already expired
 
+def _fmt_weekly_when() -> str:
+    """Human 'Sunday 8 AM ET' string for the configured weekly-summary slot, so
+    /help reflects weekly_summary_day/hour instead of a hardcoded schedule."""
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    ampm = "AM" if WEEKLY_HOUR < 12 else "PM"
+    h12  = WEEKLY_HOUR % 12 or 12
+    return f"{days[WEEKLY_DAY]} {h12} {ampm} ET"
+
 _HELP_EMBED = {
     "title": "🌤️  SNJ Mesh Weather Bot by compy / KD2QED",
     "description": (
@@ -2009,11 +2020,11 @@ _HELP_EMBED = {
         {"name":"/aqi",       "value":"EPA AirNow air quality report." +
                                ("" if AIRNOW_KEY else " *(API key not configured)*"),"inline":False},
         {"name":"/hurricane", "value":"NHC Atlantic tropical storm status.","inline":False},
-        {"name":"/radar",     "value":f"Live NWS KDIX radar for {LOCATION_NAME} (opens in browser).","inline":False},
+        {"name":"/radar",     "value":f"Live NWS {RADAR_STATION} radar for {LOCATION_NAME} (opens in browser).","inline":False},
         {"name":"/status",    "value":"Bot operational status, last update times, circuit-breaker health.","inline":False},
         {"name":"/help",      "value":"Show this message.","inline":False},
     ],
-    "footer":{"text":"Weekly outlook auto-posts Sunday 8 AM ET | SNJ Mesh Weather"},
+    "footer":{"text":f"Weekly outlook auto-posts {_fmt_weekly_when()} | SNJ Mesh Weather"},
 }
 
 

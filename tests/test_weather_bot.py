@@ -673,6 +673,8 @@ class TestRedactFilter:
     error would otherwise write them to weather-bot.log in the clear."""
 
     ID, SECRET, TOKEN = "REAL_ID_12345678", "REAL_SECRET_ABCDEF", "MTUxNjc0.tok.en"
+    WEBHOOK = ("https://discord.com/api/webhooks/123456789012345678/"
+               "AbCdEf-ghIjKlMnOpQrStUvWxYz0123456789")
 
     @classmethod
     def setup_class(cls):
@@ -680,7 +682,7 @@ class TestRedactFilter:
         ns = _exec_block("class _RedactFilter", "_redactor = _RedactFilter()",
                          {"logging": _logging})
         cls.F = ns["_RedactFilter"]
-        cls.F.set_secrets(cls.ID, cls.SECRET, cls.TOKEN, None, "", "short")
+        cls.F.set_secrets(cls.ID, cls.SECRET, cls.TOKEN, cls.WEBHOOK, None, "", "short")
         cls.filt = cls.F()
         cls._logging = _logging
 
@@ -704,6 +706,22 @@ class TestRedactFilter:
     def test_bot_token_redacted(self):
         msg, _ = self.scrub(f"logging in with {self.TOKEN}")
         assert self.TOKEN not in msg
+
+    def test_webhook_url_redacted(self):
+        """A discord_webhook URL embeds a token in its last path segment, and
+        aiohttp logs the full URL on error, so it must be scrubbed."""
+        msg, _ = self.scrub(
+            "Could not derive channel ID from webhook URL: "
+            f"ClientResponseError: 401, url='{self.WEBHOOK}'")
+        assert self.WEBHOOK not in msg
+        assert "REDACTED" in msg
+
+    def test_module_registers_webhook_secret(self):
+        """Guard the wiring: weather_bot.py must pass discord_webhook to the
+        redactor, not only the four API credentials."""
+        block = SRC[SRC.index("_RedactFilter.set_secrets("):
+                    SRC.index("_errs = _validate_config")]
+        assert "discord_webhook" in block
 
     def test_args_are_scrubbed_too(self):
         _, args = self.scrub("value=%s", (self.SECRET,))
@@ -802,3 +820,45 @@ class TestPrune:
         # not cleared/superseded/suppressed -> the clear-loop's job, not prune's
         p = {"a": {"ts": self.OLD}}
         assert "a" in prune(p, set(), self.NOW)
+
+
+# ============================================================================
+# Config-driven /help text  (v2.9.2 region-neutrality)
+# ============================================================================
+
+class TestWeeklyWhen:
+    """/help must describe the CONFIGURED weekly-summary slot, not a hardcoded
+    'Sunday 8 AM ET'."""
+
+    @staticmethod
+    def make(day, hour):
+        ns = {"WEEKLY_DAY": day, "WEEKLY_HOUR": hour}
+        return _exec_block("def _fmt_weekly_when", "_HELP_EMBED = {",
+                           ns)["_fmt_weekly_when"]()
+
+    def test_default_sunday_8am(self):
+        assert self.make(6, 8) == "Sunday 8 AM ET"
+
+    def test_monday_1pm(self):
+        assert self.make(0, 13) == "Monday 1 PM ET"
+
+    def test_midnight_is_12_am(self):
+        assert self.make(2, 0) == "Wednesday 12 AM ET"
+
+    def test_noon_is_12_pm(self):
+        assert self.make(4, 12) == "Friday 12 PM ET"
+
+
+class TestHelpEmbedConfigDriven:
+    """The /help embed must interpolate the configured radar station and weekly
+    schedule rather than baking in KDIX / 'Sunday 8 AM ET' (region-neutrality)."""
+
+    help_src = SRC[SRC.index("_HELP_EMBED = {"):SRC.index("_ready_once = False")]
+
+    def test_radar_station_not_hardcoded(self):
+        assert "KDIX" not in self.help_src
+        assert "RADAR_STATION" in self.help_src
+
+    def test_weekly_schedule_not_hardcoded(self):
+        assert "Sunday 8 AM" not in self.help_src
+        assert "_fmt_weekly_when()" in self.help_src

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.2] - 2026-07-25
+
+### Fixed
+- `/help` now shows the configured radar station and weekly-summary schedule instead of a hardcoded "KDIX" and "Sunday 8 AM ET", so a non-default deployment (different `radar_station`, `weekly_summary_day`/`weekly_summary_hour`) sees text that matches its own config.
+
+### Security
+- The optional `discord_webhook` URL — whose last path segment is a token — is now registered with the log redactor. aiohttp includes the full request URL in its exception text, so an HTTP error while deriving the channel ID from a webhook could previously have written the token to `weather-bot.log` in the clear.
+
 ## [2.9.1] - 2026-07-25
 
 ### Changed
@@ -111,12 +119,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.1...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...HEAD
+[2.9.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.6...v2.8.0
-[2.7.6]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.5...v2.7.6
+[2.7.6]: https://github.com/jschollenberger/discord-weather-bot/releases/tag/v2.7.6
 [2.7.5]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.7.2...v2.7.3
