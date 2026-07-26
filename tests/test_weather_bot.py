@@ -875,7 +875,7 @@ class TestAccreditation:
     def test_help_embed_credits_and_links_source(self):
         help_src = SRC[SRC.index("_HELP_EMBED = {"):SRC.index("_ready_once = False")]
         assert "SOURCE_URL" in help_src          # About field links the repo
-        assert "GPLv3" in help_src               # license credited
+        assert "__author__" in help_src          # author credited
 
     def test_help_command_attaches_github_button(self):
         block = SRC[SRC.index("async def slash_help"):
