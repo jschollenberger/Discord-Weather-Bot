@@ -4,14 +4,14 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-A Discord bot that posts live weather conditions, NWS alerts, tides, air quality, and hurricane tracking for Southern New Jersey — Atlantic, Burlington, Camden, Cape May, Cumberland, Gloucester, and Salem counties.
+A Discord bot that posts live weather conditions, NWS alerts, tides, air quality, and hurricane tracking for any US area you configure. Every location detail — the alert coverage zones, forecast point, and tide and radar stations — lives in `config.json`, so it runs anywhere in the United States. It ships configured for Southern New Jersey (the seven counties served by NWS Mount Holly) as a ready-to-run example.
 
 Conditions are pulled from a personal weather station (PWS) via the Aeris/Xweather API. Alerts, forecasts, tides, air quality, and tropical storm data come from NWS, NOAA CO-OPS, EPA AirNow, and the National Hurricane Center.
 
 ## Features
 
 - **Live conditions** that update in place on a single pinned message — temperature, feels-like, humidity/dewpoint, wind, barometric trend, rain, UV, and sunrise/sunset — with Refresh, Radar, Alerts, and Forecast buttons that reply privately to whoever clicks
-- **NWS alerts** posted automatically as they're issued, updated, or cancelled, filtered to Southern NJ by an explicit set of 10 NWS forecast zones and 7 county codes (see below) — not a heuristic — with a configurable severity threshold and a per-type suppression list
+- **NWS alerts** posted automatically as they're issued, updated, or cancelled, filtered to your configured area by an explicit set of NWS forecast zones and county codes (see below) — not a heuristic — with a configurable severity threshold and a per-type suppression list
 - **Weekly outlook** auto-posted on a configurable day/time — forecast, tides, air quality, and active alert count
 - **Slash commands** for on-demand conditions, alerts, forecasts, tides, AQI, hurricane status, live radar imagery, and bot health
 - **Live status** — the bot shows a "Watching …" presence under its name reflecting current conditions, e.g. `Partly Cloudy · 72°F · No Alerts` or `Thunderstorm · 68°F · ⚠️ 2 alerts`
@@ -19,7 +19,7 @@ Conditions are pulled from a personal weather station (PWS) via the Aeris/Xweath
 
 ## Coverage area
 
-Alerts are matched by NWS UGC code against the counties and forecast zones listed under `coverage` in `config.json`. The default (used when the key is omitted) is the 7 Southern NJ counties served by NWS Mount Holly:
+The bot works for any US area — pick your NWS forecast zones and county codes and set them under `coverage` in `config.json`. Alerts are matched by NWS UGC code against those. The built-in default (used when the key is omitted) is the seven Southern NJ counties served by NWS Mount Holly, which also doubles as a worked example:
 
 | Zone | County | Zone | County |
 |---|---|---|---|
@@ -49,7 +49,7 @@ Two ready-to-edit examples ship with the repo: `config.example.southern-nj.json`
 
 The bot serves one channel in one guild per process. To cover a second guild with a different area, run a **second instance of the same code** with its own config.
 
-Point each instance at its own data directory with `--data-dir` (or the `SNJ_BOT_DIR` environment variable). `config.json`, `state.json`, and the log file all live there, so one checkout serves any number of instances:
+Point each instance at its own data directory with `--data-dir` (or the `WEATHER_BOT_DIR` environment variable). `config.json`, `state.json`, and the log file all live there, so one checkout serves any number of instances:
 
 ```bash
 mkdir -p ~/bots/southern-nj ~/bots/atlantic
@@ -74,7 +74,7 @@ Two things to get right:
 | Command | Description |
 |---|---|
 | `/conditions [station_id]` | Latest PWS reading; optionally query any Xweather station |
-| `/alerts` | Active NWS alerts for the 7 Southern NJ counties |
+| `/alerts` | Active NWS alerts for your configured coverage area |
 | `/forecast [zipcode]` | NWS 7-day forecast; optionally for any US zip code |
 | `/tides [station_id]` | High/low tide schedule; optionally any NOAA CO-OPS station |
 | `/aqi` | Current + forecast EPA AirNow air quality (needs an API key) |
@@ -185,7 +185,7 @@ pytest
 
 When bumping the version, update `__version__` in `weather_bot.py` and add a matching entry at the top of `CHANGELOG.md` — a test asserts the two agree.
 
-The tests in `tests/` are regression tests for logic that has actually failed in the past — the Southern-NJ geography filter, the zone→county fallback table, update-chain reference resolution, and state pruning. If you touch any of that, run them.
+The tests in `tests/` are regression tests for logic that has actually failed in the past — the coverage-area geography filter, the zone→county fallback table, update-chain reference resolution, and state pruning. If you touch any of that, run them.
 
 ## Data sources
 

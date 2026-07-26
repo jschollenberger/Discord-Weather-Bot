@@ -543,12 +543,12 @@ class TestConditionsDashboardButtons:
                    SRC.index("class ", SRC.index("class ConditionsRefreshView") + 10)]
 
     def test_all_three_buttons_present(self):
-        for cid in ("snj_weather:radar", "snj_weather:alerts",
-                    "snj_weather:forecast"):
+        for cid in ("weather_bot:radar", "weather_bot:alerts",
+                    "weather_bot:forecast"):
             assert f'custom_id="{cid}"' in self.view_src, cid
 
     def test_refresh_button_still_present(self):
-        assert 'custom_id="snj_weather:conditions_refresh"' in self.view_src
+        assert 'custom_id="weather_bot:conditions_refresh"' in self.view_src
 
     def test_custom_ids_are_unique(self):
         ids = re.findall(r'custom_id="([^"]+)"', SRC)

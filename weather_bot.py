@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "2.10.0"
+__version__ = "3.0.0"
 
 import argparse
 import asyncio
@@ -64,7 +64,7 @@ except ImportError:
 # checkout serve several instances (e.g. one guild per directory):
 #
 #   python weather_bot.py --data-dir ~/bots/atlantic
-#   SNJ_BOT_DIR=~/bots/atlantic python weather_bot.py
+#   WEATHER_BOT_DIR=~/bots/atlantic python weather_bot.py
 #
 # Precedence: command line > environment > script directory.
 def _resolve_paths() -> tuple[Path, Path]:
@@ -75,22 +75,22 @@ def _resolve_paths() -> tuple[Path, Path]:
     ap.add_argument("--data-dir", metavar="DIR",
                     help="directory holding config.json, state.json and the "
                          "log file (default: alongside this script; "
-                         "env: SNJ_BOT_DIR)")
+                         "env: WEATHER_BOT_DIR)")
     ap.add_argument("--config", metavar="FILE",
                     help="path to the config file "
                          "(default: <data-dir>/config.json; "
-                         "env: SNJ_BOT_CONFIG)")
+                         "env: WEATHER_BOT_CONFIG)")
     # parse_known_args so an unrecognised flag never hard-fails startup
     args, _unknown = ap.parse_known_args()
 
-    data_dir = Path(args.data_dir or os.environ.get("SNJ_BOT_DIR")
+    data_dir = Path(args.data_dir or os.environ.get("WEATHER_BOT_DIR")
                     or Path(__file__).parent).expanduser()
     try:
         data_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         sys.exit(f"ERROR: could not create data directory {data_dir}: {e}")
 
-    cfg_file = Path(args.config or os.environ.get("SNJ_BOT_CONFIG")
+    cfg_file = Path(args.config or os.environ.get("WEATHER_BOT_CONFIG")
                     or data_dir / "config.json").expanduser()
     return cfg_file, data_dir
 
@@ -761,7 +761,7 @@ class ConditionsRefreshView(discord.ui.View):
 
     @discord.ui.button(label="Refresh", emoji="🔄",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:conditions_refresh")
+                       custom_id="weather_bot:conditions_refresh")
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "refresh_button")
         uid     = interaction.user.id
@@ -794,7 +794,7 @@ class ConditionsRefreshView(discord.ui.View):
     # and reuses the same responder as the corresponding slash command.
     @discord.ui.button(label="Radar", emoji="📡",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:radar")
+                       custom_id="weather_bot:radar")
     async def radar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "radar_button")
         await interaction.response.defer(ephemeral=True)
@@ -802,7 +802,7 @@ class ConditionsRefreshView(discord.ui.View):
 
     @discord.ui.button(label="Alerts", emoji="⚠️",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:alerts")
+                       custom_id="weather_bot:alerts")
     async def alerts_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "alerts_button")
         await interaction.response.defer(ephemeral=True)
@@ -810,7 +810,7 @@ class ConditionsRefreshView(discord.ui.View):
 
     @discord.ui.button(label="Forecast", emoji="📅",
                        style=discord.ButtonStyle.secondary,
-                       custom_id="snj_weather:forecast")
+                       custom_id="weather_bot:forecast")
     async def forecast_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         _log_cmd(interaction, "forecast_button")
         await interaction.response.defer(ephemeral=True)
@@ -1036,7 +1036,7 @@ def _barometric_tendency() -> str:
 def _sun_times() -> dict | None:
     if not _ASTRAL_OK: return None
     try:
-        loc = _AstralLocation(name=LOCATION_NAME, region="NJ",
+        loc = _AstralLocation(name=LOCATION_NAME, region="US",
                               timezone="America/New_York",
                               latitude=FORECAST_LAT, longitude=FORECAST_LON)
         s   = _astral_sun(loc.observer, date=_now_et().date(), tzinfo=_TZ)
@@ -1870,8 +1870,8 @@ async def _post_weekly_summary():
     aqi_data   = await fetch_aqi() if AIRNOW_KEY else None
     tides      = await fetch_tides(7)
     all_alerts = await fetch_alerts() or []
-    active_snj = sum(1 for f in all_alerts if _in_coverage(f))
-    await _send(build_weekly_summary_embed(periods,aqi_data,tides,active_snj))
+    active_local = sum(1 for f in all_alerts if _in_coverage(f))
+    await _send(build_weekly_summary_embed(periods,aqi_data,tides,active_local))
     _event("📊  Weekly summary posted")
 
 # ---------------------------------------------------------------------------
