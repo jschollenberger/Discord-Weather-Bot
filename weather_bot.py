@@ -28,7 +28,9 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.0.1"
+__version__ = "3.1.0"
+__author__  = "Jason Schollenberger KD2QED"
+SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
 import argparse
 import asyncio
@@ -883,6 +885,11 @@ def _wind_dir(deg: float) -> str:
     dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
             "S","SSW","SW","WSW","W","WNW","NW","NNW"]
     return dirs[round(deg / 22.5) % 16]
+
+def _pws_station_url(station_id: str | None = None) -> str:
+    """Public PWSweather.com page for a PWS — the Aeris/Xweather PWS network's
+    public site.  Uses the queried station if given, else the default."""
+    return f"https://www.pwsweather.com/station/mid/{(station_id or PWS_STATION_ID).lower()}"
 
 async def fetch_conditions(station_id: str | None = None,
                            fast: bool = False) -> dict | None:
@@ -2023,8 +2030,9 @@ _HELP_EMBED = {
         {"name":"/radar",     "value":f"Live NWS {RADAR_STATION} radar for {LOCATION_NAME} (opens in browser).","inline":False},
         {"name":"/status",    "value":"Bot operational status, last update times, circuit-breaker health.","inline":False},
         {"name":"/help",      "value":"Show this message.","inline":False},
+        {"name":"ℹ️ About",    "value":f"Discord Weather Bot v{__version__} by {__author__} · [Source on GitHub]({SOURCE_URL})","inline":False},
     ],
-    "footer":{"text":f"Weekly outlook auto-posts {_fmt_weekly_when()} | Discord Weather Bot"},
+    "footer":{"text":f"Weekly outlook auto-posts {_fmt_weekly_when()}"},
 }
 
 
@@ -2153,7 +2161,12 @@ async def on_ready():
 async def slash_help(interaction: discord.Interaction):
     _log_cmd(interaction, "help")
     await interaction.response.send_message(
-        embed=_embed(_HELP_EMBED), ephemeral=True)
+        embed=_embed(_HELP_EMBED),
+        view=LinkButtonView([
+            ("View on GitHub",  "🐙", SOURCE_URL),
+            ("Report an issue", "🐞", f"{SOURCE_URL}/issues"),
+        ]),
+        ephemeral=True)
 
 
 @tree.command(name="conditions", description="Get weather conditions from a PWS station")
@@ -2164,7 +2177,9 @@ async def slash_conditions(interaction: discord.Interaction,
     await interaction.response.defer()
     embed_dict = await _fetch_and_build_conditions(station_id, fast=True)
     if embed_dict:
-        await interaction.followup.send(embed=_embed(embed_dict))
+        await interaction.followup.send(
+            embed=_embed(embed_dict),
+            view=LinkButtonView([("View on PWSweather", "📡", _pws_station_url(station_id))]))
     else:
         hint = f" (station `{station_id.upper()}`)" if station_id else ""
         await interaction.followup.send(
@@ -2229,8 +2244,13 @@ async def _respond_forecast(interaction: discord.Interaction, *, ephemeral: bool
     periods = await fetch_forecast(lat, lon, fast=True)
     if periods:
         title = f"📅  7-Day Forecast — {location_label}" if zipcode else None
+        gov_lat = lat if lat is not None else FORECAST_LAT
+        gov_lon = lon if lon is not None else FORECAST_LON
+        gov_url = f"https://forecast.weather.gov/MapClick.php?lat={gov_lat}&lon={gov_lon}"
         await interaction.followup.send(
-            embed=_embed(build_forecast_embed(periods, title)), ephemeral=ephemeral)
+            embed=_embed(build_forecast_embed(periods, title)),
+            view=LinkButtonView([("Full forecast on weather.gov", "🌐", gov_url)]),
+            ephemeral=ephemeral)
     else:
         await interaction.followup.send(
             "❌  Could not fetch the NWS forecast — try again in a moment.",
@@ -2410,6 +2430,17 @@ async def slash_status(interaction: discord.Interaction):
     else:
         alert_val = "None"
 
+    # Weather-station (PWS) block: identity, public page, last reading, feed health
+    pws_ok   = _cb_ok("pws")
+    _sky     = _state.get("last_sky")
+    _temp    = _state.get("last_temp_f")
+    _reading = " · ".join(
+        ([_sky] if isinstance(_sky, str) and _sky else [])
+        + ([f"{round(_temp)}°F"] if isinstance(_temp, (int, float)) else [])) or "—"
+    pws_val  = (f"`{PWS_STATION_ID}` · [View on PWSweather]({_pws_station_url()})\n"
+                f"Last reading: {_reading} · "
+                f"{'✅ reporting' if pws_ok else '⚠️ feed backed off'}")
+
     fields = [
         {"name":"⏱️ Uptime",          "value":str(uptime),                                "inline":True},
         {"name":"📍 Channel",         "value":f"<#{ch_id}>",                              "inline":True},
@@ -2418,6 +2449,7 @@ async def slash_status(interaction: discord.Interaction):
                                               f"{len(_COVERAGE_ZONES)} zone"
                                               f"{'s' if len(_COVERAGE_ZONES)!=1 else ''} · "
                                               f"{RADAR_STATION} radar",     "inline":False},
+        {"name":"📡 Weather Station", "value":pws_val,                                     "inline":False},
         {"name":"🌡️ Conditions",      "value":f"{_ago(last_cond)}\nNext ~{int(cond_next//60)}m","inline":True},
         {"name":"⚠️ Alert check",     "value":f"{_ago(last_alrt)}\nNext ~{int(alrt_next//60)}m","inline":True},
         {"name":"🚨 Active alerts",   "value":alert_val,                                  "inline":False},

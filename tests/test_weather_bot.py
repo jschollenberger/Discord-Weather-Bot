@@ -862,3 +862,51 @@ class TestHelpEmbedConfigDriven:
     def test_weekly_schedule_not_hardcoded(self):
         assert "Sunday 8 AM" not in self.help_src
         assert "_fmt_weekly_when()" in self.help_src
+
+
+# ============================================================================
+# Accreditation / source link  (must be reachable from Discord via /help)
+# ============================================================================
+
+class TestAccreditation:
+    def test_source_url_constant_defined(self):
+        assert re.search(r'^SOURCE_URL\s*=\s*"https://github\.com/\S+"', SRC, re.M)
+
+    def test_help_embed_credits_and_links_source(self):
+        help_src = SRC[SRC.index("_HELP_EMBED = {"):SRC.index("_ready_once = False")]
+        assert "SOURCE_URL" in help_src          # About field links the repo
+        assert "__author__" in help_src          # author credited
+
+    def test_help_command_attaches_github_button(self):
+        block = SRC[SRC.index("async def slash_help"):
+                    SRC.index("async def slash_conditions")]
+        assert "LinkButtonView" in block and "SOURCE_URL" in block
+        assert "/issues" in block                # Report an issue button
+
+
+# ============================================================================
+# Data-source link buttons  (every data command links its authoritative source)
+# ============================================================================
+
+class TestForecastSourceLink:
+    def test_forecast_links_weather_gov(self):
+        block = SRC[SRC.index("async def _respond_forecast"):
+                    SRC.index("async def _respond_radar")]
+        assert "forecast.weather.gov" in block
+        assert "LinkButtonView" in block
+
+
+class TestConditionsSourceLink:
+    def test_conditions_links_pwsweather(self):
+        assert "pwsweather.com" in SRC
+        block = SRC[SRC.index("async def slash_conditions"):
+                    SRC.index("async def _respond_alerts")]
+        assert "_pws_station_url" in block and "LinkButtonView" in block
+
+
+class TestStatusPwsBlock:
+    def test_status_has_weather_station_block(self):
+        block = SRC[SRC.index("async def slash_status"):]
+        assert "Weather Station" in block          # the field name
+        assert "PWS_STATION_ID" in block           # station id shown
+        assert "_pws_station_url" in block         # link to its page

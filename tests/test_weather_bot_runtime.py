@@ -80,6 +80,12 @@ class TestPureHelpers:
         assert wb._condition_emoji("Heavy Snow") == "❄️"
         assert wb._condition_emoji(None) == "🌤️"
 
+    def test_pws_station_url(self, wb):
+        assert (wb._pws_station_url("F7263")
+                == "https://www.pwsweather.com/station/mid/f7263")   # lower-cased
+        assert wb._pws_station_url() == (
+            f"https://www.pwsweather.com/station/mid/{wb.PWS_STATION_ID.lower()}")
+
     def test_barometric_tendency_collecting(self, wb, monkeypatch):
         monkeypatch.setattr(wb, "_state", {"pressure_history": []})
         assert "collecting" in wb._barometric_tendency()
