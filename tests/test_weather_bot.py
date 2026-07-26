@@ -894,3 +894,11 @@ class TestForecastSourceLink:
                     SRC.index("async def _respond_radar")]
         assert "forecast.weather.gov" in block
         assert "LinkButtonView" in block
+
+
+class TestConditionsSourceLink:
+    def test_conditions_links_pwsweather(self):
+        assert "pwsweather.com" in SRC
+        block = SRC[SRC.index("async def slash_conditions"):
+                    SRC.index("async def _respond_alerts")]
+        assert "_pws_station_url" in block and "LinkButtonView" in block

@@ -886,6 +886,11 @@ def _wind_dir(deg: float) -> str:
             "S","SSW","SW","WSW","W","WNW","NW","NNW"]
     return dirs[round(deg / 22.5) % 16]
 
+def _pws_station_url(station_id: str | None = None) -> str:
+    """Public PWSweather.com page for a PWS — the Aeris/Xweather PWS network's
+    public site.  Uses the queried station if given, else the default."""
+    return f"https://www.pwsweather.com/station/mid/{(station_id or PWS_STATION_ID).lower()}"
+
 async def fetch_conditions(station_id: str | None = None,
                            fast: bool = False) -> dict | None:
     """fast=True uses 1s/3s retry delays for interactive slash commands."""
@@ -2172,7 +2177,9 @@ async def slash_conditions(interaction: discord.Interaction,
     await interaction.response.defer()
     embed_dict = await _fetch_and_build_conditions(station_id, fast=True)
     if embed_dict:
-        await interaction.followup.send(embed=_embed(embed_dict))
+        await interaction.followup.send(
+            embed=_embed(embed_dict),
+            view=LinkButtonView([("View on PWSweather", "📡", _pws_station_url(station_id))]))
     else:
         hint = f" (station `{station_id.upper()}`)" if station_id else ""
         await interaction.followup.send(
