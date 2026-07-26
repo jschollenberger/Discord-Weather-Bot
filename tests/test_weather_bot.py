@@ -1,5 +1,5 @@
 """
-Regression tests for SNJ Mesh Weather Bot.
+Regression tests for Discord Weather Bot.
 
 These cover the pure logic that has actually bitten in production:
   * the coverage-area filter        (v2.7 posted out-of-area alerts)
@@ -46,7 +46,7 @@ class TestVersion:
     def test_runtime_strings_interpolate_version(self):
         """The banner, status footer, UA and startup log must use
         __version__ rather than a baked-in literal."""
-        for anchor in ("SNJMeshWeatherBot/{__version__}",
+        for anchor in ("DiscordWeatherBot/{__version__}",
                        "Weather Bot v{__version__}",
                        'f"v{__version__} | Started'):
             assert anchor in SRC, anchor

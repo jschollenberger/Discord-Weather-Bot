@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-07-25
+
+### Changed
+- Renamed the bot from "SNJ Mesh Weather Bot" to **Discord Weather Bot** across its user-facing surface: the `/help` and `/status` titles, every embed footer, the console banner, the startup log, and the outbound identifiers (the User-Agent and the NOAA CO-OPS `application` parameter, now `DiscordWeatherBot`). The project has outgrown its single-community origin and is now a general-purpose bot, matching the repository name. The `/help` title also drops the personal byline. The `snj_weather:` button custom IDs and the `SNJ_BOT_DIR` / `SNJ_BOT_CONFIG` environment variables are intentionally left unchanged — renaming them would break the buttons on already-posted conditions messages and existing deployments' launch configuration, respectively.
+
 ## [2.9.2] - 2026-07-25
 
 ### Fixed
@@ -119,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.10.0...HEAD
+[2.10.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...v2.10.0
 [2.9.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.8.1...v2.9.0
