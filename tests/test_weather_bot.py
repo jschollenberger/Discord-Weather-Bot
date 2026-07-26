@@ -359,6 +359,19 @@ class TestValidateConfig:
     def test_radar_station_defaults_when_absent(self):
         assert _validate_config(cfg()) == []
 
+    # --- optional PWS station page URL ---
+    def test_valid_pws_station_url_accepted(self):
+        assert _validate_config(cfg(
+            pws_station_url="https://www.pwsweather.com/station/pws/knjmaysl16")) == []
+
+    def test_null_pws_station_url_accepted(self):
+        assert _validate_config(cfg(pws_station_url=None)) == []
+
+    @pytest.mark.parametrize("bad", ["not-a-url", "ftp://x", 42, ["x"]])
+    def test_bad_pws_station_url_is_error(self, bad):
+        errs = _validate_config(cfg(pws_station_url=bad))
+        assert any("pws_station_url" in e for e in errs)
+
     # --- command sync scope ---
     @pytest.mark.parametrize("good", ["auto", "global", "guild", "GUILD"])
     def test_valid_command_sync_accepted(self, good):
