@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-07-26
+
+### Added
+- Runtime test suite (`tests/test_weather_bot_runtime.py`, with a `tests/conftest.py` fixture that imports the real module against a throwaway config) covering the paths that were previously untestable without live infrastructure: the alert state machine (`_task_alerts`) across its new / update / cancel / clear / suppress transitions — including the invariant that an alerts-API outage must never be read as "no active alerts" and clear live alerts — plus `_http_get`'s retry and circuit-breaker behavior and seven pure helpers (`_alert_tier`, `_alert_is_suppressed`, `_storm_category`, `_barometric_tendency`, `_wind_dir`, `_knots_to_mph`, `_condition_emoji`).
+
+### Changed
+- CI now measures and reports test coverage via `pytest-cov` (reported, not gated).
+
 ## [3.0.0] - 2026-07-26
 
 ### Changed
@@ -130,7 +138,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.2...v3.0.0
 [2.9.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v2.9.0...v2.9.1
