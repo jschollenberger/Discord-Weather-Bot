@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.1.4"
+__version__ = "3.2.0"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -237,6 +237,7 @@ def _validate_config(cfg: dict) -> list[str]:
     _int_check("aqi_alert_threshold",    3,   1,  6,     "{v} must be 1-6")
     _int_check("weekly_summary_day",     6,   0,  6,     "must be 0 (Mon) to 6 (Sun)")
     _int_check("weekly_summary_hour",    8,   0,  23,    "must be 0-23")
+    _int_check("briefing_hour",          6,   0,  23,    "must be 0-23")
     # location_name is interpolated into slash-command descriptions, which
     # Discord caps at 100 chars.  The longest template leaves ~50 chars.
     loc = cfg.get("location_name", "")
@@ -405,6 +406,8 @@ AIRNOW_KEY              = _cfg.get("airnow_api_key")
 AQI_THRESHOLD           = int(_cfg.get("aqi_alert_threshold",3))
 WEEKLY_DAY              = int(_cfg.get("weekly_summary_day",6))
 WEEKLY_HOUR             = int(_cfg.get("weekly_summary_hour",8))
+BRIEFING_ENABLED        = bool(_cfg.get("briefing_enabled",False))
+BRIEFING_HOUR           = int(_cfg.get("briefing_hour",6))
 
 # Alert post threshold: "all" (default) | "watch" | "warning"
 # "all"     -> post every alert including advisories and statements
@@ -579,6 +582,7 @@ def load_state() -> dict:
         "channel_id":                None,
         "forecast_url":              None,
         "weekly_posted":             [],
+        "briefing_posted":           [],
         "pressure_history":          [],
     }
     try:
@@ -745,13 +749,15 @@ async def _resolve_channel():
 
 async def _send(embed_dict: dict,
                 reference: discord.Message | None = None,
-                view: discord.ui.View | None = None) -> discord.Message | None:
+                view: discord.ui.View | None = None,
+                silent: bool = False) -> discord.Message | None:
     if _channel is None:
         log.error("No channel resolved; cannot send"); return None
     try:
         kw: dict = {"embed": _embed(embed_dict)}
         if reference: kw["reference"] = reference; kw["mention_author"] = False
         if view:      kw["view"] = view
+        if silent:    kw["silent"] = True   # suppress push notification
         return await _channel.send(**kw)
     except discord.Forbidden as e: log.error(f"channel.send() forbidden: {_exc(e)}")
     except discord.HTTPException as e: log.error(f"channel.send() HTTP error: {_exc(e)}")
@@ -1732,6 +1738,78 @@ def build_weekly_summary_embed(periods, aqi_data, tides, active_alerts: int) -> 
             "color":0x5865F2,"fields":fields,
             "footer":{"text":"NWS · NOAA Tides · EPA AirNow | Discord Weather Bot"}}
 
+def _briefing_hm(dt: datetime) -> str:
+    """Compact clock like '6:12a' / '12:34p' for the morning briefing."""
+    h = dt.hour % 12 or 12
+    return f"{h}:{dt.minute:02d}{'a' if dt.hour < 12 else 'p'}"
+
+def build_morning_briefing_embed(periods, tides, aqi_data, sun,
+                                 alert_events) -> dict:
+    """
+    Compact, once-daily "shape of the day" post.  Deliberately OMITS current
+    conditions (temp / feels-like / humidity / wind / current sky) — the pinned
+    conditions message covers "right now", and a 6 AM snapshot is stale by 9.
+    Only additive, all-day-valid info goes here.
+
+    alert_events: None = the alert check was unavailable, [] = no active alerts,
+    [names] = active in-coverage alert event names (which jump to the top line).
+    """
+    now_et = _now_et()
+    title  = f"🌅  Good Morning, {LOCATION_NAME} · {now_et.strftime('%a %b %d')}"
+
+    # Forecast summary + today's high/low, from the NWS periods
+    periods = periods or []
+    day_p   = next((p for p in periods if p.get("isDaytime")), None)
+    night_p = next((p for p in periods if not p.get("isDaytime")), None)
+    fc      = (day_p or {}).get("shortForecast", "")
+    hi      = (day_p or {}).get("temperature")
+    lo      = (night_p or {}).get("temperature")
+    hl      = f"High {hi}° Low {lo}°" if hi is not None and lo is not None else ""
+    fc_line = " · ".join(x for x in (fc, hl) if x) or "Forecast unavailable"
+
+    # All of today's tide events
+    today = now_et.strftime("%Y-%m-%d")
+    times = []
+    for p in (tides or []):
+        t = p.get("t", "")
+        if t[:10] != today:
+            continue
+        try:
+            times.append(_briefing_hm(datetime.strptime(t, "%Y-%m-%d %H:%M")))
+        except Exception:
+            pass
+    tide_seg = f"🌊 {' · '.join(times)}" if times else ""
+
+    # Sunrise/sunset, compacted (_sun_times returns e.g. "5:52 AM")
+    sun_seg = ""
+    if sun:
+        sr = str(sun.get("sunrise", "")).replace(" AM", "a").replace(" PM", "p")
+        ss = str(sun.get("sunset", "")).replace(" AM", "a").replace(" PM", "p")
+        if sr and ss:
+            sun_seg = f"☀️ {sr}–{ss}"
+
+    # AQI (daily-ish)
+    aqi_seg = ""
+    if aqi_data:
+        best    = max(aqi_data, key=lambda x: x.get("AQI", 0))
+        cat     = best.get("Category", {}).get("Name", "")
+        aqi_seg = f"🌫️ AQI {best.get('AQI', '—')} {cat}".rstrip()
+
+    alert_clear = "❔ Alerts unavailable" if alert_events is None else "✅ No active alerts"
+
+    if alert_events:                       # active weather → alerts on the top line
+        lines = ["⚠️ " + ", ".join(alert_events),
+                 fc_line,
+                 "   ".join(x for x in (tide_seg, sun_seg, aqi_seg) if x)]
+    else:                                  # clear → planning info, alert state last
+        lines = [fc_line,
+                 "   ".join(x for x in (tide_seg, sun_seg) if x),
+                 "   ".join(x for x in (aqi_seg, alert_clear) if x)]
+
+    return {"title": title,
+            "description": "\n".join(ln for ln in lines if ln),
+            "color": 0xFFB347}
+
 # ---------------------------------------------------------------------------
 # Async tasks
 # ---------------------------------------------------------------------------
@@ -1916,6 +1994,26 @@ async def _post_weekly_summary():
     await _send(build_weekly_summary_embed(periods,aqi_data,tides,active_local))
     _event("📊  Weekly summary posted")
 
+async def _post_morning_briefing():
+    log.info("Posting morning briefing")
+    periods  = await fetch_forecast()
+    tides    = await fetch_tides(1)
+    aqi_data = await fetch_aqi() if AIRNOW_KEY else None
+    sun      = _sun_times()
+    raw      = await fetch_alerts()
+    if raw is None:                        # outage → do NOT imply "no alerts"
+        alert_events = None
+    else:
+        alert_events = []
+        for f in raw:
+            ev = f.get("properties", {}).get("event", "")
+            if _in_coverage(f) and ev and ev not in alert_events:
+                alert_events.append(ev)
+    # Silent (no ping): the pinned conditions message already covers "now".
+    await _send(build_morning_briefing_embed(periods, tides, aqi_data, sun,
+                                             alert_events), silent=True)
+    _event("🌅  Morning briefing posted")
+
 # ---------------------------------------------------------------------------
 # Scheduler  (self-healing: exceptions logged but loop continues)
 # ---------------------------------------------------------------------------
@@ -2011,6 +2109,15 @@ async def _scheduler():
                     await _post_weekly_summary()
                     posted_w.append(week_key)
                     _state["weekly_posted"] = posted_w[-10:]
+                    save_state(_state)
+
+            if BRIEFING_ENABLED and now_et.hour==BRIEFING_HOUR:
+                day_key  = f"briefing:{now_et.strftime('%Y-%m-%d')}"
+                posted_b = _state.setdefault("briefing_posted",[])
+                if day_key not in posted_b:
+                    await _post_morning_briefing()
+                    posted_b.append(day_key)
+                    _state["briefing_posted"] = posted_b[-14:]
                     save_state(_state)
 
         except Exception as e:

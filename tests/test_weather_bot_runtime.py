@@ -427,3 +427,57 @@ class TestFetchConditionsLogLevel:
             assert run(wb.fetch_conditions(None)) is None
         rec = next(r for r in caplog.records if "PWS error" in r.getMessage())
         assert rec.levelname == "ERROR"
+
+
+# ============================================================================
+# Morning briefing
+# ============================================================================
+
+class TestMorningBriefing:
+    def _periods(self):
+        return [{"isDaytime": True,  "shortForecast": "Sunny", "temperature": 84},
+                {"isDaytime": False, "shortForecast": "Clear", "temperature": 66}]
+
+    def _tides(self, wb):
+        today = wb._now_et().strftime("%Y-%m-%d")
+        return [{"t": f"{today} 06:12", "type": "L", "v": "0.1"},
+                {"t": f"{today} 12:34", "type": "H", "v": "4.2"}]
+
+    def _aqi(self):
+        return [{"AQI": 38, "ParameterName": "PM2.5",
+                 "Category": {"Name": "Good", "Number": 1}}]
+
+    _SUN = {"sunrise": "5:52 AM", "sunset": "8:18 PM"}
+
+    def test_clear_day_layout(self, wb):
+        e = wb.build_morning_briefing_embed(
+            self._periods(), self._tides(wb), self._aqi(), self._SUN, [])
+        assert "Good Morning" in e["title"]
+        d = e["description"]
+        assert "Sunny · High 84° Low 66°" in d
+        assert "🌊 6:12a · 12:34p" in d
+        assert "☀️ 5:52a–8:18p" in d
+        assert "AQI 38 Good" in d
+        assert "No active alerts" in d
+
+    def test_active_alerts_jump_to_top(self, wb):
+        e = wb.build_morning_briefing_embed(
+            self._periods(), self._tides(wb), self._aqi(), self._SUN,
+            ["Heat Advisory", "Coastal Flood Advisory"])
+        lines = e["description"].split("\n")
+        assert lines[0] == "⚠️ Heat Advisory, Coastal Flood Advisory"
+        assert "No active alerts" not in e["description"]
+
+    def test_alert_check_unavailable(self, wb):
+        e = wb.build_morning_briefing_embed(
+            self._periods(), self._tides(wb), self._aqi(), self._SUN, None)
+        assert "unavailable" in e["description"].lower()
+
+    def test_compact_no_field_grid(self, wb):
+        e = wb.build_morning_briefing_embed(
+            self._periods(), self._tides(wb), self._aqi(), self._SUN, [])
+        assert not e.get("fields")   # description-only, no field grid
+
+    def test_degrades_when_data_missing(self, wb):
+        e = wb.build_morning_briefing_embed(None, None, None, None, [])
+        assert "Forecast unavailable" in e["description"]
