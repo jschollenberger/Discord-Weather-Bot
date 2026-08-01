@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.1.2"
+__version__ = "3.1.3"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 

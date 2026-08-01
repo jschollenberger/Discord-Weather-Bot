@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.3] - 2026-07-26
+
+### Changed
+- CI hardening: enabled ruff's bugbear (`B`) lint rules (catches likely bugs such as mutable default arguments), added CodeQL security scanning (per-PR and weekly), and added Dependabot (monthly, grouped) for `pip` and GitHub Actions dependency updates.
+
 ## [3.1.2] - 2026-07-26
 
 ### Fixed
@@ -163,7 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.2...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.3...HEAD
+[3.1.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.1...v3.1.0
