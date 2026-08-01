@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.1.1"
+__version__ = "3.1.2"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -536,8 +536,19 @@ def _clamp_embed(embed: dict) -> dict:
     over = total(embed) - _D_TOTAL
     if over > 0 and embed.get("description"):
         keep = max(0, len(embed["description"]) - over - 1)
-        embed["description"] = embed["description"][:keep] + "…"
+        embed["description"] = embed["description"][:keep] + ("…" if keep else "")
         log.warning("Embed exceeded 6000 chars; description trimmed")
+    # Still over (e.g. many large fields with a short description)?  Trim field
+    # values from the end, then drop trailing fields if names alone overflow.
+    if isinstance(embed.get("fields"), list) and total(embed) > _D_TOTAL:
+        for fld in reversed(embed["fields"]):
+            if total(embed) <= _D_TOTAL: break
+            v = fld.get("value", "")
+            keep = max(0, len(v) - (total(embed) - _D_TOTAL) - 1)
+            fld["value"] = (v[:keep] + "…") if keep else "…"
+        while total(embed) > _D_TOTAL and embed["fields"]:
+            embed["fields"].pop()
+        log.warning("Embed exceeded 6000 chars; fields trimmed")
     return embed
 
 def _embed(embed_dict: dict) -> "discord.Embed":
@@ -1533,10 +1544,10 @@ def build_aqi_embed(obs: list, forecast: list | None = None) -> dict:
             fcst_fields.append({"name":f"📅 {label}{action}","value":lines,"inline":False})
     health = [{"name":"💡 Health Guidance","value":_AQI_HEALTH.get(best_num,""),"inline":False}] \
              if best_num >= 2 else []
-    return {"title":f"{_aqi_dot(best_num)}  Air Quality — {area}",
+    return {"title":f"{_aqi_dot(best_num)}  Air Quality — {LOCATION_NAME}",
             "description":f"Overall: **{_AQI_LABEL.get(best_num,'Unknown')}** (AQI {overall.get('AQI','—')})",
             "color":_aqi_color(best_num),"fields":obs_fields+fcst_fields+health,
-            "footer":{"text":"EPA AirNow | Discord Weather Bot"}}
+            "footer":{"text":f"EPA AirNow · reporting area: {area} | Discord Weather Bot"}}
 
 def build_aqi_alert_embed(data: list, improving: bool = False) -> dict:
     overall = max(data,key=lambda x:x.get("AQI",0))
@@ -1847,7 +1858,12 @@ async def _task_alerts() -> bool:
             continue
 
         msg = await _send(build_alert_embed(feature),view=view)
-        posted[aid] = {"ts":time.time(),"message_id":str(msg.id) if msg else None,
+        if msg is None:
+            # Send failed — do NOT record it, or a later cycle would emit a
+            # phantom CLEARED for an alert nobody saw.  Unrecorded ⇒ retried.
+            log.error(f"Alert send failed; will retry next cycle: {event} — {area}")
+            continue
+        posted[aid] = {"ts":time.time(),"message_id":str(msg.id),
                        "event":event,"area":area,"cleared":False}
         _event(f"⚠️  NEW ALERT: {event} — {area}",
                f"expires={expires}, msg_id={posted[aid]['message_id']}, id={aid}")

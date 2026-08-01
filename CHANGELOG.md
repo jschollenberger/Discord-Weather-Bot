@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.2] - 2026-07-26
+
+### Fixed
+- A failed send of a *new* NWS alert (e.g. a transient Discord error) was recorded as if it had posted, so a later cycle could emit a phantom "CLEARED" for an alert nobody saw. A failed send is no longer recorded — the alert is simply retried on the next cycle.
+- `_clamp_embed` now enforces the 6000-character aggregate limit by trimming oversized field values (and dropping trailing fields as a last resort), not only the description, so an embed dominated by large fields can no longer 400 on send.
+
+### Changed
+- The `/aqi` embed shows your configured `location_name` in the title and moves the EPA/AirNow reporting-area name (e.g. "Southern Coastal") to the footer as `reporting area: …`, making it clear that name is AirNow's monitoring zone, not a bot setting.
+
 ## [3.1.1] - 2026-07-26
 
 ### Fixed
@@ -154,7 +163,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.1...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.2...HEAD
+[3.1.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.0.0...v3.0.1
