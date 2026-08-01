@@ -315,6 +315,17 @@ class TestTaskAlerts:
         rec = alerts_env.state["posted_alerts"]["A"]
         assert rec["cleared"] is False and rec["message_id"] is not None
 
+    def test_failed_send_not_recorded_so_it_retries(self, wb, alerts_env, monkeypatch):
+        """A failed send must NOT be recorded as posted, or a later cycle would
+        emit a phantom CLEARED for an alert nobody saw."""
+        async def _fail(embed_dict, reference=None, view=None):
+            return None
+        monkeypatch.setattr(wb, "_send", _fail)
+        alerts_env.set_alerts([_feat("A", "Tornado Warning")])
+        run(wb._task_alerts())
+        assert "A" not in alerts_env.state["posted_alerts"]   # unrecorded ⇒ retried
+        assert alerts_env.clears == []                        # no phantom clear
+
     def test_below_threshold_alert_suppressed(self, wb, alerts_env, monkeypatch):
         monkeypatch.setattr(wb, "ALERT_POST_THRESHOLD", "warning")
         alerts_env.set_alerts([_feat("S", "Special Weather Statement")])

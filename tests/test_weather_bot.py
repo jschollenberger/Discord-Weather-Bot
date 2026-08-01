@@ -498,6 +498,15 @@ class TestClampEmbed:
                  sum(len(f["name"]) + len(f["value"]) for f in out["fields"]))
         assert total <= 6000
 
+    def test_aggregate_capped_when_fields_are_the_bulk(self):
+        # short description, but 25 near-max fields (~26000 chars via fields)
+        big = {"description": "d",
+               "fields": [{"name": f"f{i}", "value": "v" * 1000} for i in range(25)]}
+        out = self.clamp(big)
+        total = (len(out.get("title", "")) + len(out.get("description", "")) +
+                 sum(len(f["name"]) + len(f["value"]) for f in out.get("fields", [])))
+        assert total <= 6000
+
     def test_none_description_does_not_crash(self):
         assert self.clamp({"description": None}).get("description") == ""
 
