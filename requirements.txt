@@ -1,5 +1,5 @@
-discord.py>=2.0
-aiohttp>=3.8
+discord.py>=2.7.1
+aiohttp>=3.14.3
 tzdata      # Windows only: IANA timezone database for zoneinfo (no-op on Linux/macOS)
 
 # Optional — enables sunrise/sunset in /conditions; the bot runs fine without it
