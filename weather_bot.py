@@ -1483,6 +1483,8 @@ def build_tides_embed(predictions: list, station_id: str | None = None,
 _AQI_DOT   = {1:"🟢",2:"🟡",3:"🟠",4:"🔴",5:"🟣",6:"⚫"}
 _AQI_LABEL = {1:"Good",2:"Moderate",3:"Unhealthy for Sensitive Groups",
                4:"Unhealthy",5:"Very Unhealthy",6:"Hazardous"}
+_AQI_PARAM = {"O3":"Ozone","PM2.5":"PM2.5","PM10":"PM10",
+              "NO2":"NO₂","CO":"CO","SO2":"SO₂"}   # AirNow pollutant -> Action Day label
 _AQI_COLOR = [0x00E400,0xFFFF00,0xFF7E00,0xFF0000,0x8F3F97,0x7E0023]
 _AQI_HEALTH= {
     1:"Air quality is satisfactory with little or no risk.",
@@ -1738,77 +1740,103 @@ def build_weekly_summary_embed(periods, aqi_data, tides, active_alerts: int) -> 
             "color":0x5865F2,"fields":fields,
             "footer":{"text":"NWS · NOAA Tides · EPA AirNow | Discord Weather Bot"}}
 
-def _briefing_hm(dt: datetime) -> str:
-    """Compact clock like '6:12a' / '12:34p' for the morning briefing."""
-    h = dt.hour % 12 or 12
-    return f"{h}:{dt.minute:02d}{'a' if dt.hour < 12 else 'p'}"
+def _briefing_wind(p) -> str:
+    """Forecast wind segment, e.g. '💨 SW 5–10 mph'.  NWS windSpeed is a text
+    range like '5 to 10 mph' (sustained, not gusts); render it with an en dash."""
+    spd = str((p or {}).get("windSpeed", "")).strip()
+    if not spd:
+        return ""
+    spd = spd.replace(" to ", "–")
+    dr  = str((p or {}).get("windDirection", "")).strip()
+    return f"💨 {dr} {spd}" if dr else f"💨 {spd}"
 
-def build_morning_briefing_embed(periods, tides, aqi_data, sun,
+def _briefing_aqi(aqi_forecast) -> str:
+    """AQI segment from AirNow *forecast* items for today — the worst (max-AQI)
+    category, with an Action Day flagged by pollutant.  A forecast fits a morning
+    post better than a current observation, which is stale by afternoon."""
+    if not aqi_forecast:
+        return ""
+    today  = _now_et().strftime("%Y-%m-%d")
+    todays = [i for i in aqi_forecast
+              if str(i.get("DateForecast", "")).strip()[:10] == today]
+    if not todays:
+        return ""
+    best = max(todays, key=lambda x: x["AQI"] if isinstance(x.get("AQI"), int) else -1)
+    cat  = best.get("Category", {}).get("Name", "").strip()
+    if not cat:
+        return ""
+    n   = best.get("AQI")
+    num = f" {n}" if isinstance(n, int) and n >= 0 else ""
+    seg = f"🌫️ AQI{num} {cat}"
+    if best.get("ActionDay"):
+        poll = _AQI_PARAM.get(best.get("ParameterName", ""),
+                              (best.get("ParameterName") or "")).strip()
+        seg += f" · ⚠️ {poll + ' ' if poll else ''}Action Day"
+    return seg
+
+def build_morning_briefing_embed(periods, aqi_forecast, sun,
                                  alert_events) -> dict:
     """
     Compact, once-daily "shape of the day" post.  Deliberately OMITS current
-    conditions (temp / feels-like / humidity / wind / current sky) — the pinned
+    conditions (feels-like / humidity / current sky / observed wind) — the pinned
     conditions message covers "right now", and a 6 AM snapshot is stale by 9.
     Only additive, all-day-valid info goes here.
 
+    Line 1 — the forecast: condition · rain chance · wind · high/low.
+    Line 2 — daylight + air: sunrise/sunset · today's *forecast* AQI.
+    Line 3 — alert state (fixed position, always last).
+
     alert_events: None = the alert check was unavailable, [] = no active alerts,
-    [names] = active in-coverage alert event names (which jump to the top line).
+    [names] = active in-coverage alert event names.
     """
     now_et = _now_et()
     title  = f"🌅  Good Morning, {LOCATION_NAME} · {now_et.strftime('%a %b %d')}"
 
-    # Forecast summary + today's high/low, from the NWS periods
     periods = periods or []
     day_p   = next((p for p in periods if p.get("isDaytime")), None)
     night_p = next((p for p in periods if not p.get("isDaytime")), None)
-    fc      = (day_p or {}).get("shortForecast", "")
-    hi      = (day_p or {}).get("temperature")
-    lo      = (night_p or {}).get("temperature")
-    hl      = f"High {hi}° Low {lo}°" if hi is not None and lo is not None else ""
-    fc_line = " · ".join(x for x in (fc, hl) if x) or "Forecast unavailable"
 
-    # All of today's tide events
-    today = now_et.strftime("%Y-%m-%d")
-    times = []
-    for p in (tides or []):
-        t = p.get("t", "")
-        if t[:10] != today:
-            continue
-        try:
-            times.append(_briefing_hm(datetime.strptime(t, "%Y-%m-%d %H:%M")))
-        except Exception:
-            pass
-    tide_seg = f"🌊 {' · '.join(times)}" if times else ""
+    # Line 1 — the forecast: condition · rain chance · wind · high/low
+    fc     = (day_p or {}).get("shortForecast", "")
+    fc_seg = f"{_condition_emoji(fc)} {fc}" if fc else ""
 
-    # Sunrise/sunset, compacted (_sun_times returns e.g. "5:52 AM")
+    pop = (day_p or {}).get("probabilityOfPrecipitation") or {}
+    pop = pop.get("value") if isinstance(pop, dict) else None
+    # Show a rain chance only at ≥20% (NWS "slight chance" and up) — below that is noise.
+    precip_seg = f"☔ {int(pop)}%" if isinstance(pop, (int, float)) and pop >= 20 else ""
+
+    wind_seg = _briefing_wind(day_p)
+
+    hi = (day_p or {}).get("temperature")
+    lo = (night_p or {}).get("temperature")
+    hl_seg = f"High {hi}° Low {lo}°" if hi is not None and lo is not None else ""
+
+    fc_line = " · ".join(x for x in (fc_seg, precip_seg, wind_seg, hl_seg) if x) \
+              or "Forecast unavailable"
+
+    # Line 2 — daylight + air quality (sun compacted; _sun_times gives e.g. "5:52 AM")
     sun_seg = ""
     if sun:
         sr = str(sun.get("sunrise", "")).replace(" AM", "a").replace(" PM", "p")
         ss = str(sun.get("sunset", "")).replace(" AM", "a").replace(" PM", "p")
         if sr and ss:
-            sun_seg = f"☀️ {sr}–{ss}"
+            sun_seg = f"🌇 {sr}–{ss}"
+    env_line = " · ".join(x for x in (sun_seg, _briefing_aqi(aqi_forecast)) if x)
 
-    # AQI (daily-ish)
-    aqi_seg = ""
-    if aqi_data:
-        best    = max(aqi_data, key=lambda x: x.get("AQI", 0))
-        cat     = best.get("Category", {}).get("Name", "")
-        aqi_seg = f"🌫️ AQI {best.get('AQI', '—')} {cat}".rstrip()
+    # Line 3 — alert state (always last)
+    if alert_events is None:
+        alert_line = "❔ Alerts unavailable"
+    elif alert_events:
+        alert_line = "⚠️ " + ", ".join(alert_events)
+    else:
+        alert_line = "✅ No active alerts"
 
-    alert_clear = "❔ Alerts unavailable" if alert_events is None else "✅ No active alerts"
-
-    if alert_events:                       # active weather → alerts on the top line
-        lines = ["⚠️ " + ", ".join(alert_events),
-                 fc_line,
-                 "   ".join(x for x in (tide_seg, sun_seg, aqi_seg) if x)]
-    else:                                  # clear → planning info, alert state last
-        lines = [fc_line,
-                 "   ".join(x for x in (tide_seg, sun_seg) if x),
-                 "   ".join(x for x in (aqi_seg, alert_clear) if x)]
-
+    lines = [fc_line, env_line, alert_line]
     return {"title": title,
+            "url": f"https://forecast.weather.gov/MapClick.php?lat={FORECAST_LAT}&lon={FORECAST_LON}",
             "description": "\n".join(ln for ln in lines if ln),
-            "color": 0xFFB347}
+            "color": 0xFFB347,
+            "footer": {"text": "Daily Forecast · Discord Weather Bot"}}
 
 # ---------------------------------------------------------------------------
 # Async tasks
@@ -1996,11 +2024,10 @@ async def _post_weekly_summary():
 
 async def _post_morning_briefing():
     log.info("Posting morning briefing")
-    periods  = await fetch_forecast()
-    tides    = await fetch_tides(1)
-    aqi_data = await fetch_aqi() if AIRNOW_KEY else None
-    sun      = _sun_times()
-    raw      = await fetch_alerts()
+    periods      = await fetch_forecast()
+    aqi_forecast = await fetch_aqi_forecast() if AIRNOW_KEY else None
+    sun          = _sun_times()
+    raw          = await fetch_alerts()
     if raw is None:                        # outage → do NOT imply "no alerts"
         alert_events = None
     else:
@@ -2010,7 +2037,7 @@ async def _post_morning_briefing():
             if _in_coverage(f) and ev and ev not in alert_events:
                 alert_events.append(ev)
     # Silent (no ping): the pinned conditions message already covers "now".
-    await _send(build_morning_briefing_embed(periods, tides, aqi_data, sun,
+    await _send(build_morning_briefing_embed(periods, aqi_forecast, sun,
                                              alert_events), silent=True)
     _event("🌅  Morning briefing posted")
 

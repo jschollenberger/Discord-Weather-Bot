@@ -434,50 +434,95 @@ class TestFetchConditionsLogLevel:
 # ============================================================================
 
 class TestMorningBriefing:
-    def _periods(self):
-        return [{"isDaytime": True,  "shortForecast": "Sunny", "temperature": 84},
-                {"isDaytime": False, "shortForecast": "Clear", "temperature": 66}]
+    def _periods(self, pop=0):
+        return [{"isDaytime": True,  "shortForecast": "Sunny", "temperature": 84,
+                 "windSpeed": "5 to 10 mph", "windDirection": "SW",
+                 "probabilityOfPrecipitation": {"value": pop}},
+                {"isDaytime": False, "shortForecast": "Clear", "temperature": 66,
+                 "windSpeed": "5 mph", "windDirection": "S",
+                 "probabilityOfPrecipitation": {"value": pop}}]
 
-    def _tides(self, wb):
+    def _aqi_forecast(self, wb, aqi=38, name="Good", param="PM2.5", action=False):
         today = wb._now_et().strftime("%Y-%m-%d")
-        return [{"t": f"{today} 06:12", "type": "L", "v": "0.1"},
-                {"t": f"{today} 12:34", "type": "H", "v": "4.2"}]
-
-    def _aqi(self):
-        return [{"AQI": 38, "ParameterName": "PM2.5",
-                 "Category": {"Name": "Good", "Number": 1}}]
+        return [{"DateForecast": today, "AQI": aqi, "ParameterName": param,
+                 "Category": {"Name": name, "Number": 1}, "ActionDay": action}]
 
     _SUN = {"sunrise": "5:52 AM", "sunset": "8:18 PM"}
 
-    def test_clear_day_layout(self, wb):
+    def test_forecast_line(self, wb):
         e = wb.build_morning_briefing_embed(
-            self._periods(), self._tides(wb), self._aqi(), self._SUN, [])
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])
         assert "Good Morning" in e["title"]
         d = e["description"]
-        assert "Sunny · High 84° Low 66°" in d
-        assert "🌊 6:12a · 12:34p" in d
-        assert "☀️ 5:52a–8:18p" in d
-        assert "AQI 38 Good" in d
-        assert "No active alerts" in d
+        assert "☀️ Sunny" in d              # condition emoji carried over
+        assert "💨 SW 5–10 mph" in d        # forecast wind range, on the forecast line
+        assert "High 84° Low 66°" in d
+        assert "☔" not in d                 # dry day → no rain chance
 
-    def test_active_alerts_jump_to_top(self, wb):
+    def test_precip_shown_at_or_above_threshold(self, wb):
+        d = wb.build_morning_briefing_embed(
+            self._periods(pop=60), self._aqi_forecast(wb), self._SUN, [])["description"]
+        assert "☔ 60%" in d
+
+    def test_precip_hidden_below_threshold(self, wb):
+        d = wb.build_morning_briefing_embed(
+            self._periods(pop=10), self._aqi_forecast(wb), self._SUN, [])["description"]
+        assert "☔" not in d
+
+    def test_daylight_and_aqi_line(self, wb):
+        d = wb.build_morning_briefing_embed(
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])["description"]
+        assert "🌇 5:52a–8:18p" in d        # daylight glyph, not ☀️
+        assert "AQI 38 Good" in d
+
+    def test_action_day_flagged_by_pollutant(self, wb):
+        d = wb.build_morning_briefing_embed(
+            self._periods(),
+            self._aqi_forecast(wb, aqi=130, name="Unhealthy for Sensitive Groups",
+                               param="O3", action=True),
+            self._SUN, [])["description"]
+        assert "AQI 130 Unhealthy for Sensitive Groups" in d  # category expanded, not abbreviated
+        assert "Ozone Action Day" in d                        # pollutant-named
+
+    def test_aqi_dropped_when_absent(self, wb):
+        d = wb.build_morning_briefing_embed(
+            self._periods(), None, self._SUN, [])["description"]
+        assert "AQI" not in d
+        assert "🌇 5:52a–8:18p" in d        # daylight still carries line 2
+
+    def test_no_active_alerts_is_last_line(self, wb):
+        lines = wb.build_morning_briefing_embed(
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])["description"].split("\n")
+        assert lines[-1] == "✅ No active alerts"
+
+    def test_active_alerts_on_last_line(self, wb):
         e = wb.build_morning_briefing_embed(
-            self._periods(), self._tides(wb), self._aqi(), self._SUN,
+            self._periods(), self._aqi_forecast(wb), self._SUN,
             ["Heat Advisory", "Coastal Flood Advisory"])
         lines = e["description"].split("\n")
-        assert lines[0] == "⚠️ Heat Advisory, Coastal Flood Advisory"
+        assert lines[-1] == "⚠️ Heat Advisory, Coastal Flood Advisory"   # fixed last line, no jump
         assert "No active alerts" not in e["description"]
 
     def test_alert_check_unavailable(self, wb):
+        d = wb.build_morning_briefing_embed(
+            self._periods(), self._aqi_forecast(wb), self._SUN, None)["description"]
+        assert "unavailable" in d.lower()
+
+    def test_title_links_to_nws_forecast(self, wb):
         e = wb.build_morning_briefing_embed(
-            self._periods(), self._tides(wb), self._aqi(), self._SUN, None)
-        assert "unavailable" in e["description"].lower()
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])
+        assert e["url"].startswith("https://forecast.weather.gov/MapClick.php")
+
+    def test_footer_attribution(self, wb):
+        e = wb.build_morning_briefing_embed(
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])
+        assert e["footer"]["text"] == "Daily Forecast · Discord Weather Bot"
 
     def test_compact_no_field_grid(self, wb):
         e = wb.build_morning_briefing_embed(
-            self._periods(), self._tides(wb), self._aqi(), self._SUN, [])
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])
         assert not e.get("fields")   # description-only, no field grid
 
     def test_degrades_when_data_missing(self, wb):
-        e = wb.build_morning_briefing_embed(None, None, None, None, [])
+        e = wb.build_morning_briefing_embed(None, None, None, [])
         assert "Forecast unavailable" in e["description"]
