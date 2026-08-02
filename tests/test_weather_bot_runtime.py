@@ -13,6 +13,7 @@ I/O boundaries (_channel, _send, _send_cleared, fetch_alerts, the aiohttp
 session) are monkeypatched with fakes; the logic under test is the real thing.
 """
 import asyncio
+import logging
 import time
 from collections import defaultdict
 from types import SimpleNamespace
@@ -111,6 +112,10 @@ class TestPureHelpers:
             {"ts": now - 3600, "v": 30.10},
             {"ts": now,        "v": 30.02}]})
         assert "falling" in wb._barometric_tendency()
+
+    def test_exc_formatting(self, wb):
+        assert wb._exc(TimeoutError()) == "TimeoutError"           # empty msg → type only
+        assert wb._exc(ValueError("boom")) == "ValueError: boom"   # msg → 'Type: msg'
 
 
 # ============================================================================
@@ -395,3 +400,30 @@ class TestTaskAlerts:
         run(wb._task_alerts())
         assert "OLD" not in alerts_env.state["posted_alerts"]   # pruned
         assert "NEW" in alerts_env.state["posted_alerts"]       # kept
+
+
+# ============================================================================
+# fetch_conditions log level  (bad user-supplied station = WARNING, not ERROR)
+# ============================================================================
+
+class TestFetchConditionsLogLevel:
+    @staticmethod
+    def _patch_bad_pws(wb, monkeypatch):
+        async def _fake(url, **kw):
+            return {"success": False,
+                    "error": {"description": "The requested location was not found."}}
+        monkeypatch.setattr(wb, "_http_get", _fake)
+
+    def test_bad_queried_station_warns(self, wb, monkeypatch, caplog):
+        self._patch_bad_pws(wb, monkeypatch)
+        with caplog.at_level(logging.WARNING, logger="weather_bot"):
+            assert run(wb.fetch_conditions("BADSTN")) is None
+        rec = next(r for r in caplog.records if "PWS error" in r.getMessage())
+        assert rec.levelname == "WARNING"
+
+    def test_bad_default_station_errors(self, wb, monkeypatch, caplog):
+        self._patch_bad_pws(wb, monkeypatch)
+        with caplog.at_level(logging.ERROR, logger="weather_bot"):
+            assert run(wb.fetch_conditions(None)) is None
+        rec = next(r for r in caplog.records if "PWS error" in r.getMessage())
+        assert rec.levelname == "ERROR"

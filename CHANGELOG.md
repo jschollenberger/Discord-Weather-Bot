@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.4] - 2026-07-26
+
+### Changed
+- Log-quality tweaks. Exception log lines no longer leave a dangling `: ` when the exception's message is empty (e.g. a bare `TimeoutError`) — a new `_exc()` helper renders those as just the type name. And a `/conditions` query for a station the PWS provider can't find now logs at `WARNING` instead of `ERROR`, since a bad user-supplied station is input rather than a system fault (a failing *default* station remains an `ERROR`).
+
 ## [3.1.3] - 2026-07-26
 
 ### Changed
@@ -168,7 +173,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.3...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.4...HEAD
+[3.1.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.0...v3.1.1

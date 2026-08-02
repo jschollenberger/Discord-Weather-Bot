@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.1.3"
+__version__ = "3.1.4"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -474,6 +474,13 @@ def _now_et() -> datetime:
 # ---------------------------------------------------------------------------
 # Console event + command logging
 # ---------------------------------------------------------------------------
+def _exc(e: BaseException) -> str:
+    """Format an exception for a log line as 'TypeName: message', or just the
+    type name when the message is empty (e.g. a bare TimeoutError) — so an
+    empty str(e) doesn't leave a dangling ': ' at the end of the line."""
+    s = str(e)
+    return f"{type(e).__name__}: {s}" if s else type(e).__name__
+
 def _event(msg: str, detail: str = ""):
     ts = _now_et().strftime("%H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
@@ -582,7 +589,7 @@ def load_state() -> dict:
                     stored.setdefault(new, stored.pop(old))
             base.update(stored)
     except Exception as e:
-        log.error(f"Could not load state: {type(e).__name__}: {e}")
+        log.error(f"Could not load state: {_exc(e)}")
     return base
 
 def save_state(s: dict):
@@ -592,7 +599,7 @@ def save_state(s: dict):
         tmp.write_text(json.dumps(s, indent=2), encoding="utf-8")
         tmp.replace(STATE_FILE)
     except Exception as e:
-        log.error(f"Could not save state: {type(e).__name__}: {e}")
+        log.error(f"Could not save state: {_exc(e)}")
         try: tmp.unlink(missing_ok=True)
         except Exception: pass
 
@@ -723,7 +730,7 @@ async def _resolve_channel():
             channel_id = int(data["channel_id"])
             log.info(f"Channel ID {channel_id} derived from webhook URL")
         except Exception as e:
-            log.error(f"Could not derive channel ID from webhook URL: {type(e).__name__}: {e}")
+            log.error(f"Could not derive channel ID from webhook URL: {_exc(e)}")
 
     if not channel_id:
         log.error("No channel ID — set discord_channel_id in config.json")
@@ -734,7 +741,7 @@ async def _resolve_channel():
         _channel = (bot.get_channel(int(channel_id))
                     or await bot.fetch_channel(int(channel_id)))
     except Exception as e:
-        log.error(f"Could not access channel {channel_id}: {type(e).__name__}: {e}")
+        log.error(f"Could not access channel {channel_id}: {_exc(e)}")
 
 async def _send(embed_dict: dict,
                 reference: discord.Message | None = None,
@@ -746,9 +753,9 @@ async def _send(embed_dict: dict,
         if reference: kw["reference"] = reference; kw["mention_author"] = False
         if view:      kw["view"] = view
         return await _channel.send(**kw)
-    except discord.Forbidden as e: log.error(f"channel.send() forbidden: {type(e).__name__}: {e}")
-    except discord.HTTPException as e: log.error(f"channel.send() HTTP error: {type(e).__name__}: {e}")
-    except Exception as e: log.error(f"channel.send() failed: {type(e).__name__}: {e}")
+    except discord.Forbidden as e: log.error(f"channel.send() forbidden: {_exc(e)}")
+    except discord.HTTPException as e: log.error(f"channel.send() HTTP error: {_exc(e)}")
+    except Exception as e: log.error(f"channel.send() failed: {_exc(e)}")
     return None
 
 # ---------------------------------------------------------------------------
@@ -924,7 +931,10 @@ async def fetch_conditions(station_id: str | None = None,
     try:
         data = await _http_get(url, service="pws", base_delay=1.0 if fast else 5.0)
         if not data.get("success"):
-            log.error(f"PWS error ({label}): {data.get('error',{}).get('description','?')}")
+            desc = data.get('error',{}).get('description','?')
+            # A queried station the provider can't find is bad user input, not a
+            # system fault — warn; a failing DEFAULT station is a real error.
+            (log.warning if station_id else log.error)(f"PWS error ({label}): {desc}")
             return None
         obs = data["response"]["ob"]
         return {
@@ -950,7 +960,7 @@ async def fetch_conditions(station_id: str | None = None,
     except aiohttp.ClientResponseError as e:
         log.error(f"PWS fetch failed ({label}): HTTP {e.status}")
     except Exception as e:
-        log.error(f"PWS fetch failed ({label}): {type(e).__name__}: {e}")
+        log.error(f"PWS fetch failed ({label}): {_exc(e)}")
     return None
 
 async def geocode_zip(zipcode: str) -> tuple[float,float] | None:
@@ -964,7 +974,7 @@ async def geocode_zip(zipcode: str) -> tuple[float,float] | None:
         if e.status == 404: return None
         log.error(f"Zip geocode failed ({zipcode}): HTTP {e.status}")
     except Exception as e:
-        log.error(f"Zip geocode failed ({zipcode}): {type(e).__name__}: {e}")
+        log.error(f"Zip geocode failed ({zipcode}): {_exc(e)}")
     return None
 
 def build_conditions_embed(c: dict, aqi_data: list | None = None,
@@ -1278,7 +1288,7 @@ async def fetch_alerts(fast: bool = False) -> list | None:
     except RuntimeError as e:
         log.warning(f"Alerts skipped: {e}")
     except Exception as e:
-        log.error(f"NWS alerts fetch failed: {type(e).__name__}: {e}")
+        log.error(f"NWS alerts fetch failed: {_exc(e)}")
     return None
 
 def build_alert_embed(feature: dict) -> dict:
@@ -1352,7 +1362,7 @@ async def _send_cleared(message_id, event: str, area: str, cancelled: bool = Fal
         except discord.NotFound:
             log.warning(f"Original alert msg {message_id} not found; posting standalone")
         except Exception as e:
-            log.error(f"Cleared reply failed: {type(e).__name__}: {e}")
+            log.error(f"Cleared reply failed: {_exc(e)}")
     if not sent:
         await _send(ed)
     _event(f"✅  CLEARED: {event} — {area}",
@@ -1403,7 +1413,7 @@ async def fetch_radar_image() -> bytes | None:
             data = await r.read()
     except Exception as e:
         log.warning(f"Radar image fetch failed ({RADAR_STATION}): "
-                    f"{type(e).__name__}: {e}")
+                    f"{_exc(e)}")
         return None
     # Discord rejects oversized attachments; bail out rather than fail the send
     if len(data) > _RADAR_MAX_BYTES:
@@ -1430,7 +1440,7 @@ async def fetch_tides(days: int = 2, station_id: str | None = None) -> list | No
     except RuntimeError as e:
         log.warning(f"Tides skipped: {e}")
     except Exception as e:
-        log.error(f"NOAA tides fetch failed: {type(e).__name__}: {e}")
+        log.error(f"NOAA tides fetch failed: {_exc(e)}")
     return None
 
 def _fmt_tide_entry(p: dict) -> str:
@@ -1501,7 +1511,7 @@ async def fetch_aqi() -> list | None:
         else:
             log.error(f"AirNow obs: HTTP {e.status} — check API key")
     except Exception as e:
-        log.error(f"AirNow obs fetch failed: {type(e).__name__}: {e}")
+        log.error(f"AirNow obs fetch failed: {_exc(e)}")
     return None
 
 async def fetch_aqi_forecast() -> list | None:
@@ -1515,7 +1525,7 @@ async def fetch_aqi_forecast() -> list | None:
     except RuntimeError as e:
         log.warning(f"AQI forecast skipped: {e}")
     except Exception as e:
-        log.error(f"AirNow forecast fetch failed: {type(e).__name__}: {e}")
+        log.error(f"AirNow forecast fetch failed: {_exc(e)}")
     return None
 
 def build_aqi_embed(obs: list, forecast: list | None = None) -> dict:
@@ -1591,7 +1601,7 @@ async def fetch_nhc_storms() -> list | None:
     except RuntimeError as e:
         log.warning(f"NHC skipped: {e}")
     except Exception as e:
-        log.error(f"NHC fetch failed: {type(e).__name__}: {e}")
+        log.error(f"NHC fetch failed: {_exc(e)}")
     return None
 
 def build_hurricane_embed(storms: list | None) -> dict:
@@ -1660,7 +1670,7 @@ async def fetch_forecast(lat: float | None = None, lon: float | None = None,
     except RuntimeError as e:
         log.warning(f"Forecast skipped: {e}")
     except Exception as e:
-        log.error(f"NWS forecast fetch failed (lat={use_lat},lon={use_lon}): {type(e).__name__}: {e}")
+        log.error(f"NWS forecast fetch failed (lat={use_lat},lon={use_lon}): {_exc(e)}")
         if use_default:
             _state["forecast_url"] = None   # only reset cache for configured location
         else:
@@ -1743,7 +1753,7 @@ async def _update_conditions():
             log.info("Conditions message deleted; posting fresh")
             _state["conditions_message_id"] = None
         except Exception as e:
-            log.error(f"Conditions edit failed: {type(e).__name__}: {e}")
+            log.error(f"Conditions edit failed: {_exc(e)}")
 
     if msg_id and repost and _channel:
         try:
@@ -1841,7 +1851,7 @@ async def _task_alerts() -> bool:
                     kw = {"embed":_embed(embed),"reference":orig,"mention_author":False}
                     if view: kw["view"] = view
                     msg = await _channel.send(**kw)
-                except Exception as e: log.error(f"Update reply failed: {type(e).__name__}: {e}")
+                except Exception as e: log.error(f"Update reply failed: {_exc(e)}")
             if msg is None: msg = await _send(embed,view=view)
             posted[aid] = {"ts":time.time(),"message_id":str(msg.id) if msg else orig_msg_id,
                            "event":event,"area":area,"cleared":False,"update_of":old_aid}
@@ -1967,7 +1977,7 @@ async def _rotate_presence():
                     type=discord.ActivityType.watching, name=text))
                 last = text
         except Exception as e:
-            log.warning(f"Presence update failed: {type(e).__name__}: {e}")
+            log.warning(f"Presence update failed: {_exc(e)}")
         await asyncio.sleep(PRESENCE_ROTATE_SECS)
 
 async def _scheduler():
@@ -2513,7 +2523,7 @@ if __name__ == "__main__":
                  "       Developer Portal, or run an unmodified copy of this bot\n"
                  "       (it only needs default intents).")
     except aiohttp.ClientConnectorError as e:
-        log.error(f"Could not reach Discord at startup: {type(e).__name__}: {e}")
+        log.error(f"Could not reach Discord at startup: {_exc(e)}")
         sys.exit(f"\nERROR: could not connect to Discord ({e}).\n"
                  f"       Check this host's network connection and retry.")
     except discord.HTTPException as e:
@@ -2529,5 +2539,5 @@ if __name__ == "__main__":
         # console, so an unexpected startup failure is diagnosable without
         # dumping a stack trace at whoever is running the bot.
         log.exception("Fatal error during startup")
-        sys.exit(f"\nERROR: unexpected startup failure: {type(e).__name__}: {e}\n"
+        sys.exit(f"\nERROR: unexpected startup failure: {_exc(e)}\n"
                  f"       Full traceback written to {LOG_FILE}")
