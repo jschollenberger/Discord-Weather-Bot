@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Log-quality tweaks. Exception log lines no longer leave a dangling `: ` when the exception's message is empty (e.g. a bare `TimeoutError`) — a new `_exc()` helper renders those as just the type name. And a `/conditions` query for a station the PWS provider can't find now logs at `WARNING` instead of `ERROR`, since a bad user-supplied station is input rather than a system fault (a failing *default* station remains an `ERROR`).
+- CI: added a CodeQL config (`.github/codeql/codeql-config.yml`) that excludes the test suite from analysis and filters the `clear-text-logging-sensitive-data` query — a false positive here, since `_RedactFilter` scrubs every log record before any handler writes it (a mitigation CodeQL's dataflow can't trace). CodeQL still gates on all other queries.
 
 ## [3.1.3] - 2026-07-26
 
