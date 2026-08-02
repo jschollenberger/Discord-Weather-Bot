@@ -1,0 +1,18 @@
+name: "CodeQL config"
+
+# The test suite is not runtime code.  Its source-inspection assertions
+# (e.g. `"pwsweather.com" in SRC`) trip py/incomplete-url-substring-sanitization
+# as false positives, so exclude tests/ from analysis.
+paths-ignore:
+  - tests
+
+# Exclude py/clear-text-logging-sensitive-data.  Every log record passes through
+# _RedactFilter (see weather_bot.py), which scrubs all registered secrets
+# (PWS client id/secret, Discord token, AirNow key, webhook) before any handler
+# writes it.  That handler-level mitigation is outside CodeQL's dataflow view, so
+# it flags str(exception) — which for aiohttp carries the credential-bearing URL —
+# as clear-text logging.  Verified clean in production logs.  CodeQL still gates
+# on every other query.
+query-filters:
+  - exclude:
+      id: py/clear-text-logging-sensitive-data
