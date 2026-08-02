@@ -10,10 +10,10 @@ Conditions are pulled from a personal weather station (PWS) via the Aeris/Xweath
 
 ## Features
 
-- **Live conditions** that update in place on a single pinned message — temperature, feels-like, humidity/dewpoint, wind, barometric trend, rain, UV, and sunrise/sunset — with Refresh, Radar, Alerts, and Forecast buttons that reply privately to whoever clicks
+- **Live conditions** that update in place on a single message — temperature, feels-like, humidity/dewpoint, wind, barometric trend, rain, UV, and sunrise/sunset — with Refresh, Radar, Alerts, and Forecast buttons that reply privately to whoever clicks
 - **NWS alerts** posted automatically as they're issued, updated, or cancelled, filtered to your configured area by an explicit set of NWS forecast zones and county codes (see below) — not a heuristic — with a configurable severity threshold and a per-type suppression list
 - **Weekly outlook** auto-posted on a configurable day/time — forecast, tides, air quality, and active alert count
-- **Morning briefing** *(optional)* — a compact, silent once-daily post with the day's forecast (condition, rain chance, wind, high/low), sunrise/sunset, forecast AQI, and alert state; it deliberately skips "right now" conditions (the pinned message already covers those). Enable with `briefing_enabled`
+- **Morning briefing** *(optional)* — a compact, silent once-daily post with the day's forecast (condition, rain chance, wind, high/low), sunrise/sunset, forecast AQI, and alert state; it deliberately skips "right now" conditions (the conditions message already covers those). Enable with `briefing_enabled`
 - **Slash commands** for on-demand conditions, alerts, forecasts, tides, AQI, hurricane status, live radar imagery, and bot health
 - **Live status** — the bot shows a "Watching …" presence under its name reflecting current conditions, e.g. `Partly Cloudy · 72°F · No Alerts` or `Thunderstorm · 68°F · ⚠️ 2 alerts`
 - **Built to stay up** — per-service circuit breakers and exponential-backoff retries mean one flaky upstream API degrades gracefully instead of taking the bot down, state is written atomically so a crash mid-write can't corrupt it, and an NWS outage is never mistaken for "no active alerts" (so it can't trigger false all-clears)
@@ -110,8 +110,8 @@ No privileged Gateway Intents are needed — the bot runs on `discord.Intents.de
    - Send Messages
    - Embed Links — all output is embeds, so nothing renders without this
    - Attach Files — for the live radar image in `/radar`
-   - Read Message History — needed to find and edit the pinned conditions message after a restart
-   - Manage Messages — only for pinning the conditions message; skip it if you set `pin_conditions_message: false`
+   - Read Message History — needed to find and edit the conditions message after a restart
+   - Manage Messages — only needed if you enable `pin_conditions_message` (off by default); skip it otherwise
    - Use External Emoji *(optional)* — only if your server has custom emoji you want in alerts
 
 5. Copy the generated URL at the bottom, open it, and pick the server to add the bot to. You need Manage Server permission on that server.
@@ -156,7 +156,7 @@ Startup validates `config.json` and exits with a specific, readable error for an
 | `coverage` | 7 Southern NJ counties | Counties and NWS zones to match alerts against — see [Coverage area](#coverage-area) |
 | `conditions_update_mins` | 30 | How often the conditions message refreshes |
 | `conditions_repost_hours` | 4 | Repost as a new message (instead of editing) after this long |
-| `pin_conditions_message` | true | Pin the conditions message |
+| `pin_conditions_message` | false | Pin the conditions message. Off by default: each pin — and the re-pin after every repost (`conditions_repost_hours`) — makes Discord post a "pinned a message" system notice, which adds channel noise |
 | `alert_interval_secs` | 300 | How often NWS alerts are polled |
 | `alert_post_threshold` | "all" | `all` / `watch` / `warning` — minimum severity auto-posted to the channel |
 | `alert_suppress_types` | [] | Specific event names to never auto-post, e.g. `"Small Craft Advisory"` |

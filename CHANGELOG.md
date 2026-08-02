@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-08-02
+
+### Changed
+- `pin_conditions_message` now defaults to **false**. Pinning makes Discord post a "pinned a message" system notice in the channel, and because the bot re-pins after every repost (`conditions_repost_hours`), that noise recurs. The conditions message is still found and edited in place by id, so pinning is no longer needed to keep it discoverable — enable `pin_conditions_message: true` if you still want it pinned. Both example configs set it to `false`.
+
 ## [3.2.0] - 2026-08-02
 
 ### Added
@@ -179,7 +184,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.0...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.1...HEAD
+[3.2.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.4...v3.2.0
 [3.1.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.2...v3.1.3

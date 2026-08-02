@@ -22,7 +22,7 @@
 
     "conditions_update_mins":   30,
     "conditions_repost_hours":  4,
-    "pin_conditions_message":   true,
+    "pin_conditions_message":   false,
     "alert_interval_secs":      300,
 
     "forecast_lat":             39.455,
