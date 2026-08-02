@@ -314,7 +314,7 @@ class TestValidateConfig:
         ("forecast_lat", "abc"), ("forecast_lon", "xyz"),
         ("alert_interval_secs", "soon"), ("conditions_update_mins", "half"),
         ("aqi_alert_threshold", "high"), ("weekly_summary_day", "Sunday"),
-        ("weekly_summary_hour", "8am")])
+        ("weekly_summary_hour", "8am"), ("briefing_hour", "6am")])
     def test_non_numeric_values_error_not_crash(self, key, bad):
         errs = _validate_config(cfg(**{key: bad}))
         assert any(key in e for e in errs)
@@ -328,7 +328,7 @@ class TestValidateConfig:
         ("forecast_lat", 91), ("forecast_lon", -181),
         ("alert_interval_secs", 30), ("conditions_update_mins", 1),
         ("aqi_alert_threshold", 7), ("weekly_summary_day", 9),
-        ("weekly_summary_hour", 24)])
+        ("weekly_summary_hour", 24), ("briefing_hour", 24)])
     def test_out_of_range_values_error(self, key, bad):
         errs = _validate_config(cfg(**{key: bad}))
         assert any(key in e for e in errs)
@@ -932,3 +932,17 @@ class TestStatusPwsBlock:
         assert "Weather Station" in block          # the field name
         assert "PWS_STATION_ID" in block           # station id shown
         assert "_pws_station_url" in block         # link to its page
+
+
+class TestMorningBriefingWiring:
+    """The briefing must be a silent, buttonless, once-per-day scheduled post."""
+
+    def test_scheduler_hook_present(self):
+        assert "if BRIEFING_ENABLED and now_et.hour==BRIEFING_HOUR" in SRC
+        assert "briefing_posted" in SRC            # once-per-day date-keyed guard
+
+    def test_posts_silently_with_no_buttons(self):
+        start = SRC.index("async def _post_morning_briefing")
+        block = SRC[start:SRC.index("# ---", start)]
+        assert "silent=True" in block              # silent (no ping)
+        assert "view=" not in block                # no Radar/Alerts/Forecast buttons

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-02
+
+### Added
+- **Morning briefing** — an optional, compact, once-daily post to the conditions channel with the "shape of the day", laid out in three lines: the forecast (condition, rain chance, and wind); the day's range and sky clock (high/low, sunrise/sunset, and today's *forecast* AQI, with an Action Day flagged by pollutant); and the active-alert state on a fixed last line. It deliberately omits current conditions (feels-like/humidity/observed wind/sky) — the pinned conditions message covers "right now" — carries no buttons, posts silently (no ping/notification), and links its title to the NWS point forecast. Enable with `briefing_enabled: true`; time it with `briefing_hour` (ET, default 6). Requires discord.py ≥ 2.1 for the silent send.
+
 ## [3.1.4] - 2026-07-26
 
 ### Changed
@@ -174,7 +179,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.4...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.4...v3.2.0
 [3.1.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.1...v3.1.2

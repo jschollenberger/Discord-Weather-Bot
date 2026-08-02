@@ -13,6 +13,7 @@ Conditions are pulled from a personal weather station (PWS) via the Aeris/Xweath
 - **Live conditions** that update in place on a single pinned message — temperature, feels-like, humidity/dewpoint, wind, barometric trend, rain, UV, and sunrise/sunset — with Refresh, Radar, Alerts, and Forecast buttons that reply privately to whoever clicks
 - **NWS alerts** posted automatically as they're issued, updated, or cancelled, filtered to your configured area by an explicit set of NWS forecast zones and county codes (see below) — not a heuristic — with a configurable severity threshold and a per-type suppression list
 - **Weekly outlook** auto-posted on a configurable day/time — forecast, tides, air quality, and active alert count
+- **Morning briefing** *(optional)* — a compact, silent once-daily post with the day's forecast (condition, rain chance, wind, high/low), sunrise/sunset, forecast AQI, and alert state; it deliberately skips "right now" conditions (the pinned message already covers those). Enable with `briefing_enabled`
 - **Slash commands** for on-demand conditions, alerts, forecasts, tides, AQI, hurricane status, live radar imagery, and bot health
 - **Live status** — the bot shows a "Watching …" presence under its name reflecting current conditions, e.g. `Partly Cloudy · 72°F · No Alerts` or `Thunderstorm · 68°F · ⚠️ 2 alerts`
 - **Built to stay up** — per-service circuit breakers and exponential-backoff retries mean one flaky upstream API degrades gracefully instead of taking the bot down, state is written atomically so a crash mid-write can't corrupt it, and an NWS outage is never mistaken for "no active alerts" (so it can't trigger false all-clears)
@@ -167,6 +168,8 @@ Startup validates `config.json` and exits with a specific, readable error for an
 | `airnow_api_key` | none | Optional — enables `/aqi` and AQI threshold alerts |
 | `aqi_alert_threshold` | 3 | AQI category (1–6) that triggers an alert |
 | `weekly_summary_day` / `weekly_summary_hour` | 6 / 8 | When the weekly outlook posts (0=Mon … 6=Sun, hour in ET) |
+| `briefing_enabled` | false | Post a compact, silent daily **morning briefing** (forecast condition, rain chance, wind, high/low, sunrise/sunset, forecast AQI, alert state) to the conditions channel — no current-conditions duplication, no buttons |
+| `briefing_hour` | 6 | Hour (ET, 0–23) the morning briefing posts |
 
 Suppressed or below-threshold alerts still show up in `/alerts` — they're just not auto-posted to the channel.
 

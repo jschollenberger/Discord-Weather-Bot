@@ -42,6 +42,9 @@
     "weekly_summary_day":       6,
     "weekly_summary_hour":      8,
 
+    "briefing_enabled":         false,
+    "briefing_hour":            6,
+
     "alert_post_threshold":     "warning",
     "alert_suppress_types":     []
 }
