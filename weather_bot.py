@@ -1782,8 +1782,9 @@ def build_morning_briefing_embed(periods, aqi_forecast, sun,
     conditions message covers "right now", and a 6 AM snapshot is stale by 9.
     Only additive, all-day-valid info goes here.
 
-    Line 1 — the forecast: condition · rain chance · wind · high/low.
-    Line 2 — daylight + air: sunrise/sunset · today's *forecast* AQI.
+    Line 1 — the forecast: condition · rain chance · wind.
+    Line 2 — the day's range + sky clock: high/low · sunrise/sunset · today's
+             *forecast* AQI.
     Line 3 — alert state (fixed position, always last).
 
     alert_events: None = the alert check was unavailable, [] = no active alerts,
@@ -1796,32 +1797,33 @@ def build_morning_briefing_embed(periods, aqi_forecast, sun,
     day_p   = next((p for p in periods if p.get("isDaytime")), None)
     night_p = next((p for p in periods if not p.get("isDaytime")), None)
 
-    # Line 1 — the forecast: condition · rain chance · wind · high/low
+    # Line 1 — the forecast: condition · rain chance · wind
     fc     = (day_p or {}).get("shortForecast", "")
     fc_seg = f"{_condition_emoji(fc)} {fc}" if fc else ""
 
     pop = (day_p or {}).get("probabilityOfPrecipitation") or {}
     pop = pop.get("value") if isinstance(pop, dict) else None
-    # Show a rain chance only at ≥20% (NWS "slight chance" and up) — below that is noise.
-    precip_seg = f"☔ {int(pop)}%" if isinstance(pop, (int, float)) and pop >= 20 else ""
+    # Rain chance is always shown (even 0%) for a steady 3-segment forecast line;
+    # only a NWS data gap (value: null) drops it, rather than faking a 0%.
+    precip_seg = f"☔ {int(pop)}%" if isinstance(pop, (int, float)) else ""
 
     wind_seg = _briefing_wind(day_p)
 
-    hi = (day_p or {}).get("temperature")
-    lo = (night_p or {}).get("temperature")
-    hl_seg = f"High {hi}° Low {lo}°" if hi is not None and lo is not None else ""
-
-    fc_line = " · ".join(x for x in (fc_seg, precip_seg, wind_seg, hl_seg) if x) \
+    fc_line = " · ".join(x for x in (fc_seg, precip_seg, wind_seg) if x) \
               or "Forecast unavailable"
 
-    # Line 2 — daylight + air quality (sun compacted; _sun_times gives e.g. "5:52 AM")
+    # Line 2 — the day's range + sky clock: high/low · sunrise/sunset · forecast AQI
+    hi = (day_p or {}).get("temperature")
+    lo = (night_p or {}).get("temperature")
+    hl_seg = f"🌡️ High {hi}° Low {lo}°" if hi is not None and lo is not None else ""
+
     sun_seg = ""
     if sun:
         sr = str(sun.get("sunrise", "")).replace(" AM", "a").replace(" PM", "p")
         ss = str(sun.get("sunset", "")).replace(" AM", "a").replace(" PM", "p")
         if sr and ss:
             sun_seg = f"🌇 {sr}–{ss}"
-    env_line = " · ".join(x for x in (sun_seg, _briefing_aqi(aqi_forecast)) if x)
+    env_line = " · ".join(x for x in (hl_seg, sun_seg, _briefing_aqi(aqi_forecast)) if x)
 
     # Line 3 — alert state (always last)
     if alert_events is None:

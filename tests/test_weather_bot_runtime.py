@@ -453,27 +453,29 @@ class TestMorningBriefing:
         e = wb.build_morning_briefing_embed(
             self._periods(), self._aqi_forecast(wb), self._SUN, [])
         assert "Good Morning" in e["title"]
-        d = e["description"]
-        assert "☀️ Sunny" in d              # condition emoji carried over
-        assert "💨 SW 5–10 mph" in d        # forecast wind range, on the forecast line
-        assert "High 84° Low 66°" in d
-        assert "☔" not in d                 # dry day → no rain chance
+        fc = e["description"].split("\n")[0]        # line 1 = the forecast
+        assert "☀️ Sunny" in fc                     # condition + carried-over emoji
+        assert "☔ 0%" in fc                         # rain chance is permanent, even at 0%
+        assert "💨 SW 5–10 mph" in fc               # wind range stays with the forecast
+        assert "High" not in fc                     # temp moved off the forecast line
 
-    def test_precip_shown_at_or_above_threshold(self, wb):
+    def test_precip_reflects_value(self, wb):
         d = wb.build_morning_briefing_embed(
             self._periods(pop=60), self._aqi_forecast(wb), self._SUN, [])["description"]
         assert "☔ 60%" in d
 
-    def test_precip_hidden_below_threshold(self, wb):
+    def test_precip_omitted_when_null(self, wb):
+        # a NWS data gap (value: null) shows nothing rather than a fake 0%
         d = wb.build_morning_briefing_embed(
-            self._periods(pop=10), self._aqi_forecast(wb), self._SUN, [])["description"]
+            self._periods(pop=None), self._aqi_forecast(wb), self._SUN, [])["description"]
         assert "☔" not in d
 
-    def test_daylight_and_aqi_line(self, wb):
-        d = wb.build_morning_briefing_embed(
-            self._periods(), self._aqi_forecast(wb), self._SUN, [])["description"]
-        assert "🌇 5:52a–8:18p" in d        # daylight glyph, not ☀️
-        assert "AQI 38 Good" in d
+    def test_range_line_has_temp_daylight_aqi(self, wb):
+        line2 = wb.build_morning_briefing_embed(
+            self._periods(), self._aqi_forecast(wb), self._SUN, [])["description"].split("\n")[1]
+        assert line2.startswith("🌡️ High 84° Low 66°")   # temp leads line 2, thermometer-prefixed
+        assert "🌇 5:52a–8:18p" in line2                  # daylight glyph, not ☀️
+        assert "AQI 38 Good" in line2
 
     def test_action_day_flagged_by_pollutant(self, wb):
         d = wb.build_morning_briefing_embed(
@@ -484,11 +486,12 @@ class TestMorningBriefing:
         assert "AQI 130 Unhealthy for Sensitive Groups" in d  # category expanded, not abbreviated
         assert "Ozone Action Day" in d                        # pollutant-named
 
-    def test_aqi_dropped_when_absent(self, wb):
-        d = wb.build_morning_briefing_embed(
-            self._periods(), None, self._SUN, [])["description"]
-        assert "AQI" not in d
-        assert "🌇 5:52a–8:18p" in d        # daylight still carries line 2
+    def test_range_line_keeps_temp_daylight_when_aqi_absent(self, wb):
+        line2 = wb.build_morning_briefing_embed(
+            self._periods(), None, self._SUN, [])["description"].split("\n")[1]
+        assert "AQI" not in line2
+        assert line2.startswith("🌡️ High 84° Low 66°")   # never a lonely daylight line
+        assert "🌇 5:52a–8:18p" in line2
 
     def test_no_active_alerts_is_last_line(self, wb):
         lines = wb.build_morning_briefing_embed(
