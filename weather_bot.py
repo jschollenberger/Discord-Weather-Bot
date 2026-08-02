@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.2.0"
+__version__ = "3.2.1"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -386,7 +386,7 @@ LOCATION_NAME           = _cfg.get("location_name","Southern NJ")
 ALERT_INTERVAL_SECS     = int(_cfg.get("alert_interval_secs",300))
 CONDITIONS_UPDATE_MINS  = int(_cfg.get("conditions_update_mins",30))
 CONDITIONS_REPOST_HOURS = int(_cfg.get("conditions_repost_hours",4))
-PIN_CONDITIONS          = bool(_cfg.get("pin_conditions_message",True))
+PIN_CONDITIONS          = bool(_cfg.get("pin_conditions_message",False))
 FORECAST_LAT            = float(_cfg.get("forecast_lat",39.455))
 FORECAST_LON            = float(_cfg.get("forecast_lon",-74.722))
 TIDE_STATION_ID         = _cfg.get("tide_station_id","8534720")
