@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.2] - 2026-08-11
+
+### Fixed
+- Logging no longer breaks (and floods the console with tracebacks) when the log file's handle is invalidated — e.g. the file lives on a network share or removable drive that reconnects, or the host sleeps and resumes. Previously a plain `FileHandler` would raise `OSError` (EINVAL) on every subsequent write, lose the record, and print a full traceback per record to the console. The file handler now transparently reopens the file and retries once on a write failure, so a transient blip resumes logging instead of silently dropping everything after it, and `logging.raiseExceptions` is disabled so an unrecoverable write drops the record quietly rather than dumping a stack trace. Credential redaction is unchanged. (Running the bot from local disk rather than a network share is still the more robust setup.)
+
 ## [3.2.1] - 2026-08-02
 
 ### Changed
@@ -184,7 +189,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.1...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.2...HEAD
+[3.2.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.1...v3.2.2
 [3.2.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.4...v3.2.0
 [3.1.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.3...v3.1.4

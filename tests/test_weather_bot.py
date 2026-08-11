@@ -765,6 +765,24 @@ class TestRedactFilter:
         assert self.filt.filter(rec) is True
 
 
+class TestLoggingResilience:
+    """A dead log-file handle (network share / removable drive) must not spam
+    the console or permanently break logging."""
+
+    def test_file_handler_is_self_healing(self):
+        assert "class _ReopeningFileHandler(logging.FileHandler)" in SRC
+        assert "_fh  = _ReopeningFileHandler(" in SRC   # the real handler uses it
+
+    def test_raise_exceptions_disabled(self):
+        # Stops logging from printing a traceback per record on a dead handle.
+        assert "logging.raiseExceptions = False" in SRC
+
+    def test_reopening_handler_still_redacted(self):
+        """The redactor is attached to the handler instance, so swapping the
+        FileHandler class must not drop redaction."""
+        assert "_fh.addFilter(_redactor)" in SRC
+
+
 # ============================================================================
 # Update-chain reference matching  (v2.7.2 regression)
 # ============================================================================

@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.2.1"
+__version__ = "3.2.2"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -118,8 +118,38 @@ _rotate_logs()
 # ---------------------------------------------------------------------------
 # Logging  (file = INFO+, console = ERROR only; notable events use _event())
 # ---------------------------------------------------------------------------
+class _ReopeningFileHandler(logging.FileHandler):
+    """A FileHandler that transparently reopens its file if a write fails.
+
+    The log file may sit on a network share or removable drive whose open
+    handle a reconnect or sleep/resume can invalidate.  A plain FileHandler
+    then raises OSError (EINVAL) on every subsequent flush, loses the record,
+    and — with raiseExceptions on — prints a full traceback per record.
+    Here a failed write reopens the file once and retries, so a transient blip
+    resumes logging instead of silently dropping everything after it."""
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            if self.stream is None:
+                self.stream = self._open()
+            try:
+                self.stream.write(msg + self.terminator)
+                self.flush()
+            except OSError:
+                try: self.stream.close()
+                except OSError: pass
+                self.stream = self._open()          # fresh handle, then retry once
+                self.stream.write(msg + self.terminator)
+                self.flush()
+        except Exception:
+            self.handleError(record)
+
+# Don't let a handler failure (e.g. a dead network-share handle) spew a
+# traceback per record to the console; the reopen above recovers when it can.
+logging.raiseExceptions = False
+
 _fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
-_fh  = logging.FileHandler(LOG_FILE, encoding="utf-8")
+_fh  = _ReopeningFileHandler(LOG_FILE, encoding="utf-8")
 _fh.setLevel(logging.INFO);  _fh.setFormatter(_fmt)
 _ch  = logging.StreamHandler(sys.stdout)
 _ch.setLevel(logging.ERROR); _ch.setFormatter(_fmt)
