@@ -48,7 +48,7 @@ class TestVersion:
         __version__ rather than a baked-in literal."""
         for anchor in ("DiscordWeatherBot/{__version__}",
                        "Weather Bot v{__version__}",
-                       'f"v{__version__} | Started'):
+                       'f"v{__version__}{_build_suffix()} | Started'):
             assert anchor in SRC, anchor
 
 

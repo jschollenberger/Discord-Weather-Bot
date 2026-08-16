@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.4] - 2026-08-16
+
+### Added
+- Build identity in the startup banner, `/status` footer, and startup log line. When running from source ahead of the latest release tag (or with uncommitted edits), these now show e.g. `v3.2.4 (build v3.2.3-4-g129acde[-dirty])` so it's clear exactly which commit is running — not just the last release number. Derived from `git describe --tags --always --dirty` at startup; on an exact tagged release it collapses to the clean tag (no suffix), and if git isn't available (e.g. a zip download) it falls back to `__version__` alone. `__version__` remains the authoritative release number for the changelog, releases, and the HTTP `User-Agent` (which stay clean semver).
+
 ## [3.2.3] - 2026-08-16
 
 ### Added
@@ -194,7 +199,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.3...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.4...HEAD
+[3.2.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.3...v3.2.4
 [3.2.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.2...v3.2.3
 [3.2.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.1...v3.2.2
 [3.2.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.0...v3.2.1
