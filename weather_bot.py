@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.2.3"
+__version__ = "3.2.4"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -39,6 +39,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -49,6 +50,31 @@ from zoneinfo import ZoneInfo
 import aiohttp
 import discord
 from discord import app_commands
+
+
+def _build_id() -> str | None:
+    """Best-effort git build identifier for the running source tree — e.g.
+    'v3.2.3-4-g129acde' (4 commits past the tag), with a '-dirty' suffix for
+    uncommitted edits.  Returns None when this isn't a git checkout (a zip
+    download) or git is absent, so callers fall back to __version__ alone.
+    Informational only: __version__ stays the authoritative release number for
+    the changelog, GitHub releases, and the HTTP User-Agent."""
+    try:
+        out = subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True, text=True, timeout=2, check=True)
+        return out.stdout.strip() or None
+    except Exception:
+        return None
+
+BUILD_ID = _build_id()
+
+def _build_suffix() -> str:
+    """' (build …)' only when the running source is ahead of / dirty against the
+    release tag; empty on an exact tagged release (git describe collapses to the
+    clean tag) or when git isn't available."""
+    return f" (build {BUILD_ID})" if BUILD_ID and BUILD_ID != f"v{__version__}" else ""
 
 try:
     from astral import LocationInfo as _AstralLocation
@@ -2340,7 +2366,7 @@ async def on_ready():
     ch_name   = f"#{_channel.name}" if _channel else "unresolved"
     astral_ok = "enabled" if _ASTRAL_OK else "disabled (pip install astral)"
     print(f"\n{'─'*62}")
-    print(f"  Discord Weather Bot v{__version__}|  {LOCATION_NAME}")
+    print(f"  Discord Weather Bot v{__version__}{_build_suffix()}|  {LOCATION_NAME}")
     print(f"  Station   : {PWS_STATION_ID}")
     print(f"  Channel   : {ch_name}")
     print(f"  Guild     : {DISCORD_GUILD_ID or 'global sync'}")
@@ -2663,7 +2689,7 @@ async def slash_status(interaction: discord.Interaction):
     embed = {"title":f"📊  Discord Weather Bot — Status · {LOCATION_NAME}",
              "color":0x57F287 if not cb_lines else 0xFFD700,
              "fields":fields,
-             "footer":{"text":f"v{__version__} | Started {start_str}"}}
+             "footer":{"text":f"v{__version__}{_build_suffix()} | Started {start_str}"}}
     await interaction.followup.send(embed=_embed(embed), ephemeral=True)
 
 
@@ -2673,7 +2699,7 @@ async def slash_status(interaction: discord.Interaction):
 if __name__ == "__main__":
     if DISCORD_BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         sys.exit("ERROR: discord_bot_token not set in config.json.")
-    log.info(f"Discord Weather Bot v{__version__} starting")
+    log.info(f"Discord Weather Bot v{__version__}{_build_suffix()} starting")
     try:
         bot.run(DISCORD_BOT_TOKEN, log_handler=None)
     except discord.LoginFailure:

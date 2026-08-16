@@ -14,6 +14,7 @@ session) are monkeypatched with fakes; the logic under test is the real thing.
 """
 import asyncio
 import logging
+import subprocess
 import time
 from collections import defaultdict
 from types import SimpleNamespace
@@ -572,3 +573,26 @@ class TestReopeningFileHandler:
         h.stream = real                                    # restore so close() is clean
         h.close()
         assert "during-outage" not in logf.read_text(encoding="utf-8")
+
+
+class TestBuildId:
+    """__version__ stays the release number; a git build-id is appended only
+    when running ahead of / dirty against the tag (source between releases)."""
+
+    def test_suffix_hidden_without_git(self, wb, monkeypatch):
+        monkeypatch.setattr(wb, "BUILD_ID", None)
+        assert wb._build_suffix() == ""
+
+    def test_suffix_hidden_on_exact_tag(self, wb, monkeypatch):
+        # git describe collapses to the clean tag on a release commit -> no noise
+        monkeypatch.setattr(wb, "BUILD_ID", f"v{wb.__version__}")
+        assert wb._build_suffix() == ""
+
+    def test_suffix_shown_when_ahead_or_dirty(self, wb, monkeypatch):
+        monkeypatch.setattr(wb, "BUILD_ID", "v3.2.1-4-g129acde-dirty")
+        assert wb._build_suffix() == " (build v3.2.1-4-g129acde-dirty)"
+
+    def test_build_id_none_when_git_unavailable(self, wb, monkeypatch):
+        monkeypatch.setattr(subprocess, "run",
+                            lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError))
+        assert wb._build_id() is None
