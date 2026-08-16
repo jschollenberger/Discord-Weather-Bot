@@ -529,3 +529,46 @@ class TestMorningBriefing:
     def test_degrades_when_data_missing(self, wb):
         e = wb.build_morning_briefing_embed(None, None, None, [])
         assert "Forecast unavailable" in e["description"]
+
+
+class TestReopeningFileHandler:
+    """A dead file handle (as a network share hands out on reconnect) must not
+    permanently break logging — the handler reopens and keeps writing."""
+
+    class _DeadStream:
+        """Mimics an invalidated handle: every write/flush raises OSError(EINVAL)."""
+        def write(self, *_): raise OSError(22, "Invalid argument")
+        def flush(self):      raise OSError(22, "Invalid argument")
+        def close(self):      pass
+
+    def _record(self, msg):
+        return logging.LogRecord("t", logging.INFO, __file__, 1, msg, None, None)
+
+    def test_reopens_and_keeps_logging_after_write_failure(self, wb, tmp_path):
+        logf = tmp_path / "wx.log"
+        h = wb._ReopeningFileHandler(str(logf), encoding="utf-8")
+        stale = h.stream
+        try:
+            h.emit(self._record("before-break"))          # normal write
+            h.stream = self._DeadStream()                  # handle goes invalid
+            h.emit(self._record("after-break"))            # must reopen + retry
+        finally:
+            try: stale.close()
+            except OSError: pass
+            h.close()
+        text = logf.read_text(encoding="utf-8")
+        assert "before-break" in text
+        assert "after-break" in text                       # not lost — reopened
+
+    def test_survives_when_reopen_also_fails(self, wb, tmp_path, monkeypatch):
+        # Share still gone: reopen fails too. emit must drop quietly, never raise.
+        logf = tmp_path / "wx.log"
+        h = wb._ReopeningFileHandler(str(logf), encoding="utf-8")
+        real = h.stream                                    # keep good handle for cleanup
+        h.stream = self._DeadStream()
+        monkeypatch.setattr(h, "_open",
+                            lambda: (_ for _ in ()).throw(OSError(22, "nope")))
+        h.emit(self._record("during-outage"))              # no exception escapes
+        h.stream = real                                    # restore so close() is clean
+        h.close()
+        assert "during-outage" not in logf.read_text(encoding="utf-8")
