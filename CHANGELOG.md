@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.3] - 2026-08-16
+
+### Added
+- The startup banner now shows the morning-briefing schedule (`Briefing : 06:00 ET`, or `disabled`), alongside the existing `Weekly` line — so you can confirm at a glance whether the daily briefing is on, the same way you can for the weekly summary.
+
 ## [3.2.2] - 2026-08-11
 
 ### Fixed
@@ -189,7 +194,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.2...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.3...HEAD
+[3.2.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.2...v3.2.3
 [3.2.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.1...v3.2.2
 [3.2.1]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.1.4...v3.2.0

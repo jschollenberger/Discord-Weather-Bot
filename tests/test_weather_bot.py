@@ -964,3 +964,11 @@ class TestMorningBriefingWiring:
         block = SRC[start:SRC.index("# ---", start)]
         assert "silent=True" in block              # silent (no ping)
         assert "view=" not in block                # no Radar/Alerts/Forecast buttons
+
+    def test_startup_banner_reports_briefing(self):
+        """The startup banner surfaces the briefing schedule, like Weekly —
+        so you can confirm at a glance whether it's on."""
+        assert '"  Briefing  : ' in SRC
+        assert "if BRIEFING_ENABLED else 'disabled'" in SRC
+        assert "BRIEFING_HOUR" in SRC[SRC.index('"  Briefing  : '):
+                                      SRC.index('"  Briefing  : ') + 120]

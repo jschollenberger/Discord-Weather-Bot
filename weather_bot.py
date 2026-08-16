@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.2.2"
+__version__ = "3.2.3"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -2354,6 +2354,7 @@ async def on_ready():
     print(f"  AQI       : {'AirNow enabled (threshold cat >= '+str(AQI_THRESHOLD)+')' if AIRNOW_KEY else 'AirNow disabled (no API key)'}")
     print(f"  Sunrise   : {astral_ok}")
     print(f"  Weekly    : {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][WEEKLY_DAY]} {WEEKLY_HOUR:02d}:00 ET")
+    print(f"  Briefing  : {f'{BRIEFING_HOUR:02d}:00 ET' if BRIEFING_ENABLED else 'disabled'}")
     print(f"  Logs      : {LOG_FILE}  (prev: {str(LOG_FILE)+'.1'})")
     print(f"{'─'*62}\n")
 
