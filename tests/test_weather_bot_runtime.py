@@ -596,3 +596,55 @@ class TestBuildId:
         monkeypatch.setattr(subprocess, "run",
                             lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError))
         assert wb._build_id() is None
+
+
+class TestGatewayNoiseFilter:
+    """discord.py's per-attempt reconnect tracebacks are collapsed to one clean
+    WARNING line; unrelated errors are untouched."""
+
+    def _rec(self, name, level, msg, args=None, exc=None):
+        return logging.LogRecord(name, level, __file__, 1, msg, args, exc)
+
+    def test_collapses_reconnect_to_warning_with_cause(self, wb):
+        class _WS(Exception):
+            status = 503
+        rec = self._rec("discord.client", logging.ERROR,
+                        "Attempting a reconnect in %.2fs", (5.0,),
+                        (_WS, _WS("bad handshake"), None))
+        assert wb._GatewayNoiseFilter().filter(rec) is True
+        assert rec.exc_info is None                     # traceback dropped
+        assert rec.levelno == logging.WARNING           # downgraded from ERROR
+        m = rec.getMessage()
+        assert "reconnect in 5.00s" in m and "503" in m  # message + cause kept
+
+    def test_non_reconnect_error_untouched(self, wb):
+        rec = self._rec("weather_bot", logging.ERROR, "Alert send failed",
+                        None, (ValueError, ValueError("boom"), None))
+        wb._GatewayNoiseFilter().filter(rec)
+        assert rec.exc_info is not None                 # not a discord reconnect
+        assert rec.levelno == logging.ERROR
+
+    def test_discord_info_without_exception_untouched(self, wb):
+        rec = self._rec("discord.gateway", logging.INFO,
+                        "Shard ID None has connected to Gateway")
+        wb._GatewayNoiseFilter().filter(rec)
+        assert rec.levelno == logging.INFO and rec.exc_info is None
+
+
+class TestAlertStatusFilter:
+    """Only real (CAP status Actual) alerts are forwarded; Test/Exercise/System/
+    Draft are dropped, but a missing status fails open (treated as actual)."""
+
+    def _feat(self, status):
+        return {"properties": {"status": status, "event": "Tsunami Warning"}}
+
+    def test_actual_is_forwarded(self, wb):
+        assert wb._alert_is_actual(self._feat("Actual")) is True
+
+    def test_non_actual_are_dropped(self, wb):
+        for s in ("Test", "Exercise", "System", "Draft"):
+            assert wb._alert_is_actual(self._feat(s)) is False, s
+
+    def test_missing_or_unknown_status_fails_open(self, wb):
+        assert wb._alert_is_actual({"properties": {"event": "Tornado Warning"}}) is True
+        assert wb._alert_is_actual({}) is True

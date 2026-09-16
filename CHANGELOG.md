@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.5] - 2026-09-16
+
+### Added
+- NWS **Test / Exercise / System / Draft** alerts are no longer forwarded — e.g. the periodic Tsunami Warning test that blasts the whole state. Only real alerts (CAP `status` = `Actual`) post, and they're dropped at the fetch source so no consumer (alerts, weekly count, morning briefing) ever sees them. Fails open: an alert with a missing/unknown status is still treated as actual, since suppressing a genuine warning is worse than forwarding a test.
+
+### Changed
+- Quieter logs during a Discord gateway outage. discord.py logs every reconnect attempt at `ERROR` with a full traceback; during an outage that's a wall of identical stacks that buries whether and when the bot recovered. Those transient reconnect records are now collapsed to a single `WARNING` line that keeps the cause (e.g. `Attempting a reconnect in 716.24s [WSServerHandshakeError: 503]`) and drops the stack trace. Real errors from anywhere else are untouched.
+
 ## [3.2.4] - 2026-08-16
 
 ### Added
@@ -199,7 +207,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.4...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.5...HEAD
+[3.2.5]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.4...v3.2.5
 [3.2.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.3...v3.2.4
 [3.2.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.2...v3.2.3
 [3.2.2]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.1...v3.2.2
