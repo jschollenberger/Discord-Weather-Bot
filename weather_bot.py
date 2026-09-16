@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.2.4"
+__version__ = "3.2.5"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -222,9 +222,42 @@ class _RedactFilter(logging.Filter):
                         for a in record.args)
         return True
 
+class _GatewayNoiseFilter(logging.Filter):
+    """Collapse discord.py's gateway-reconnect churn.
+
+    During a Discord outage discord.py logs every reconnect attempt at ERROR
+    with a full traceback — a wall of identical stacks that buries whether and
+    when the bot actually recovered.  For those transient reconnect records
+    (from discord.py's own logger, carrying an exception), drop the traceback,
+    fold the cause into the message (e.g. '[WSServerHandshakeError: 503]'), and
+    lower the level to WARNING.  A real error from anywhere else is untouched,
+    and the filter never raises."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            if (record.name.startswith("discord")
+                    and record.exc_info
+                    and isinstance(record.msg, str)
+                    and "reconnect" in record.msg.lower()):
+                exc = record.exc_info[1]
+                if exc is not None:
+                    status = getattr(exc, "status", None)
+                    detail = type(exc).__name__ + (f": {status}" if status else "")
+                    record.msg  = f"{record.getMessage()} [{detail}]"
+                    record.args = None
+                record.exc_info = None
+                record.exc_text = None
+                if record.levelno > logging.WARNING:
+                    record.levelno   = logging.WARNING
+                    record.levelname = "WARNING"
+        except Exception:
+            pass
+        return True
+
 _redactor = _RedactFilter()
-_fh.addFilter(_redactor)
-_ch.addFilter(_redactor)
+_gateway_noise = _GatewayNoiseFilter()
+for _h in (_fh, _ch):
+    _h.addFilter(_redactor)
+    _h.addFilter(_gateway_noise)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -1336,17 +1369,27 @@ def _alert_view(feature: dict) -> discord.ui.View | None:
     if iem: buttons.append(("IEM Archive","📚",iem))
     return LinkButtonView(buttons) if buttons else None
 
+def _alert_is_actual(feature: dict) -> bool:
+    """False for NWS Test / Exercise / System / Draft messages (e.g. the periodic
+    Tsunami Warning test blasted to the whole state), True for real alerts.
+    Fails open — a missing/unknown CAP status is treated as actual, since
+    suppressing a genuine warning is worse than forwarding a test."""
+    return feature.get("properties", {}).get("status", "Actual") not in (
+        "Test", "Exercise", "System", "Draft")
+
 async def fetch_alerts(fast: bool = False) -> list | None:
     """
     fast=True uses shorter retry delays for interactive slash commands.
     Returns None on fetch failure (vs. [] for a successful fetch with no
     alerts) so callers can tell an API outage apart from a quiet day —
     treating an outage as "no active alerts" would falsely CLEAR everything.
+    Non-actual (Test/Exercise/System/Draft) messages are dropped at the source
+    so no consumer — alerts, weekly count, briefing — ever sees them.
     """
     try:
         data = await _http_get(NWS_ALERTS_URL, service="nws_alerts",
                                base_delay=1.0 if fast else 5.0)
-        return data.get("features",[])
+        return [f for f in data.get("features",[]) if _alert_is_actual(f)]
     except RuntimeError as e:
         log.warning(f"Alerts skipped: {e}")
     except Exception as e:

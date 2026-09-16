@@ -778,9 +778,19 @@ class TestLoggingResilience:
         assert "logging.raiseExceptions = False" in SRC
 
     def test_reopening_handler_still_redacted(self):
-        """The redactor is attached to the handler instance, so swapping the
+        """The redactor is attached to the handler instances, so swapping the
         FileHandler class must not drop redaction."""
-        assert "_fh.addFilter(_redactor)" in SRC
+        assert "for _h in (_fh, _ch):" in SRC
+        assert "_h.addFilter(_redactor)" in SRC
+
+    def test_gateway_noise_filter_wired(self):
+        assert "class _GatewayNoiseFilter(logging.Filter)" in SRC
+        assert "_h.addFilter(_gateway_noise)" in SRC   # attached to both handlers
+
+    def test_fetch_alerts_drops_non_actual(self):
+        block = SRC[SRC.index("async def fetch_alerts"):
+                    SRC.index("def build_alert_embed")]
+        assert "if _alert_is_actual(f)" in block       # test alerts filtered at source
 
 
 # ============================================================================
