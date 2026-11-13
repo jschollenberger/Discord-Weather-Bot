@@ -648,3 +648,66 @@ class TestAlertStatusFilter:
     def test_missing_or_unknown_status_fails_open(self, wb):
         assert wb._alert_is_actual({"properties": {"event": "Tornado Warning"}}) is True
         assert wb._alert_is_actual({}) is True
+
+
+class TestAirNowAdapter:
+    """AirNow retired the lat/long services (2026-09-30); the new ones rename
+    every field.  The adapters map them back to the legacy shape the embeds,
+    alerts, and briefing consume.  Samples are the real new-API responses."""
+
+    OBS = [  # /aq/observation/current/ziplatlong/
+        {"reportingAreaName": "South Coastal", "parameterName": "PM2.5",
+         "nowcastAQI": 0,  "aqiCategoryName": "Good"},
+        {"reportingAreaName": "South Coastal", "parameterName": "OZONE",
+         "nowcastAQI": 15, "aqiCategoryName": "Good"},
+        {"reportingAreaName": "South Coastal", "parameterName": "PM10",
+         "nowcastAQI": 4,  "aqiCategoryName": "Good"},
+    ]
+    FC = [  # /aq/forecast/current/
+        {"dateValid": "2026-11-13", "reportingArea": "South Coastal",
+         "parameterName": "PM2.5", "aqi": 25, "categoryNumber": 1,
+         "categoryName": "Good", "actionDay": False},
+        {"dateValid": "2026-11-14", "reportingArea": "South Coastal",
+         "parameterName": "OZONE", "aqi": 35, "categoryNumber": 1,
+         "categoryName": "Good", "actionDay": True},
+    ]
+
+    def test_obs_mapped_to_legacy_shape(self, wb):
+        out = wb._normalize_aqi_obs(self.OBS)
+        assert {o["ParameterName"] for o in out} == {"PM2.5", "O3", "PM10"}  # OZONE -> O3
+        ozone = next(o for o in out if o["ParameterName"] == "O3")
+        assert ozone["AQI"] == 15                                   # nowcastAQI -> AQI
+        assert ozone["Category"] == {"Name": "Good", "Number": 1}   # number derived from name
+        assert ozone["ReportingArea"] == "South Coastal"
+
+    def test_obs_category_number_derived_from_name(self, wb):
+        out = wb._normalize_aqi_obs(
+            [{"parameterName": "PM2.5", "nowcastAQI": 160, "aqiCategoryName": "Unhealthy"}])
+        assert out[0]["Category"]["Number"] == 4
+
+    def test_obs_unknown_category_fails_safe(self, wb):
+        # an 'Unavailable'/unknown reading must not map to a high number and
+        # trip a false AQI alert
+        out = wb._normalize_aqi_obs(
+            [{"parameterName": "PM2.5", "nowcastAQI": -1, "aqiCategoryName": "Unavailable"}])
+        assert out[0]["Category"]["Number"] == 1
+
+    def test_forecast_mapped_to_legacy_shape(self, wb):
+        out = wb._normalize_aqi_forecast(self.FC)
+        assert out[0]["DateForecast"] == "2026-11-13"               # dateValid -> DateForecast
+        assert out[0]["AQI"] == 25 and out[0]["Category"]["Number"] == 1
+        ozone = next(f for f in out if f["ParameterName"] == "O3")
+        assert ozone["ActionDay"] is True
+
+    def test_normalized_forecast_feeds_briefing(self, wb):
+        # full chain: new forecast JSON -> adapter -> _briefing_aqi
+        seg = wb._briefing_aqi(wb._normalize_aqi_forecast([
+            {"dateValid": wb._now_et().strftime("%Y-%m-%d"), "parameterName": "OZONE",
+             "aqi": 130, "categoryNumber": 3,
+             "categoryName": "Unhealthy for Sensitive Groups", "actionDay": True}]))
+        assert "AQI 130 Unhealthy for Sensitive Groups" in seg
+        assert "Ozone Action Day" in seg                            # O3 -> Ozone label
+
+    def test_empty_or_none_safe(self, wb):
+        assert wb._normalize_aqi_obs(None) == []
+        assert wb._normalize_aqi_forecast([]) == []

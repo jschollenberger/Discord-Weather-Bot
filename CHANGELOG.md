@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.6] - 2026-11-13
+
+### Fixed
+- **AirNow AQI restored.** AirNow retired the lat/long observation and forecast web services on 2026-09-30, so both AQI calls had been returning HTTP 410 (not an auth problem — a valid key passes auth and then hits the retired service). Moved to the replacement services (`/aq/observation/current/ziplatlong/` and `/aq/forecast/current/`) and added adapters that normalize their renamed fields (`nowcastAQI`/`aqi` → `AQI`, `aqiCategoryName`/`categoryName` → category, `OZONE` → `O3`, `dateValid` → forecast date, etc.) back to the shape the rest of the bot expects, so conditions/alerts/briefing/weekly AQI all work unchanged. The observation service no longer returns a category *number*, so it's derived from the category name (unknown/"Unavailable" → Good, so a missing reading can't trip a false AQI alert).
+
+### Changed
+- More useful HTTP error logs. `_http_get` now logs the server's own error body on a 4xx/5xx (e.g. AirNow's `{"WebServiceError":[{"Message":…}]}`), and AirNow failures only say "check API key" for actual auth errors (401/403) instead of labeling every non-5xx that way — which had sent a retired-endpoint 410 masquerading as a key problem. Secrets in the body are still scrubbed by `_RedactFilter`.
+
 ## [3.2.5] - 2026-09-16
 
 ### Added
@@ -207,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `fetch_forecast` uses `_http_get`; it had been left using raw requests.
 
-[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.5...HEAD
+[Unreleased]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.6...HEAD
+[3.2.6]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.5...v3.2.6
 [3.2.5]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.4...v3.2.5
 [3.2.4]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.3...v3.2.4
 [3.2.3]: https://github.com/jschollenberger/discord-weather-bot/compare/v3.2.2...v3.2.3
