@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.2.5"
+__version__ = "3.2.6"
 __author__  = "Jason Schollenberger KD2QED"
 SOURCE_URL  = "https://github.com/jschollenberger/discord-weather-bot"
 
@@ -535,12 +535,12 @@ PWS_API_URL         = (f"https://api.aerisapi.com/observations/PWS_{PWS_STATION_
 NWS_ALERTS_URL      = "https://api.weather.gov/alerts/active?area=NJ"
 NWS_POINTS_URL      = f"https://api.weather.gov/points/{FORECAST_LAT},{FORECAST_LON}"
 NOAA_TIDES_BASE     = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
-AIRNOW_OBS_URL      = "https://www.airnowapi.org/aq/observation/latLong/current/"
+AIRNOW_OBS_URL      = "https://www.airnowapi.org/aq/observation/current/ziplatlong/"
 # NWS RIDGE II "standard" products: <base>/<STATION>_loop.gif (animated) and
 # <STATION>_0.gif (latest single frame).  Station list: https://radar.weather.gov/
 RADAR_IMAGE_BASE    = "https://radar.weather.gov/ridge/standard"
 _RADAR_MAX_BYTES    = 8 * 1024 * 1024   # stay under Discord's attachment limit
-AIRNOW_FORECAST_URL = "https://www.airnowapi.org/aq/forecast/latLong/"
+AIRNOW_FORECAST_URL = "https://www.airnowapi.org/aq/forecast/current/"
 NHC_STORMS_URL      = "https://www.nhc.noaa.gov/CurrentStorms.json"
 USER_AGENT          = f"DiscordWeatherBot/{__version__}"
 
@@ -776,6 +776,15 @@ async def _http_get(url: str, *, service: str = "unknown", retries: int = 3,
                                 f"retry {attempt+1}/{retries-1} in {delay:.0f}s")
                     await asyncio.sleep(delay)
                     continue
+                if r.status >= 400:
+                    # Surface the server's own error text (e.g. AirNow's
+                    # {"WebServiceError":[{"Message":...}]}) — a bare status can't
+                    # tell a dead key from a retired endpoint.  _RedactFilter
+                    # scrubs any secret the body might echo.
+                    try:    body = (await r.text() or "").strip().replace("\n", " ")
+                    except Exception: body = ""
+                    if body:
+                        log.warning(f"_http_get ({service}): HTTP {r.status} body: {body[:300]}")
                 r.raise_for_status()
                 data = await r.json(content_type=None)
                 _cb_success(service)
@@ -1596,6 +1605,48 @@ _AQI_HEALTH= {
 def _aqi_dot(cat: int) -> str:   return _AQI_DOT.get(cat,"⚪")
 def _aqi_color(cat: int) -> int: return _AQI_COLOR[cat-1] if 1<=cat<=6 else 0x808080
 
+# AirNow retired the lat/long observation + forecast services on 2026-09-30 and
+# replaced them with new ones (see AIRNOW_*_URL) that rename every field.  These
+# adapters map the new responses back to the legacy shape so the embeds, alerts,
+# and briefing keep working unchanged.
+_AQI_NUM = {v: k for k, v in _AQI_LABEL.items()}       # category name -> 1-6 number
+
+def _aqi_cat_num(name: str) -> int:
+    """The new observation service returns only the category *name*; map it back
+    to the 1-6 number the rest of the code keys on.  Unknown / 'Unavailable'
+    -> 1 (benign), so a missing reading can't trip a false AQI alert."""
+    return _AQI_NUM.get((name or "").strip(), 1)
+
+def _aqi_param(name: str) -> str:
+    """Normalise the new services' parameter names to the legacy ones
+    (OZONE -> O3) so _AQI_PARAM and the existing displays keep working."""
+    name = (name or "").strip()
+    return "O3" if name.upper() == "OZONE" else name
+
+def _normalize_aqi_obs(raw: list | None) -> list:
+    """Adapt /aq/observation/current/ziplatlong/ items to the legacy observation
+    shape (AQI, ParameterName, Category{Name,Number}, ReportingArea)."""
+    return [{
+        "AQI":           o.get("nowcastAQI"),
+        "ParameterName": _aqi_param(o.get("parameterName", "")),
+        "Category":      {"Name":   o.get("aqiCategoryName", ""),
+                          "Number": _aqi_cat_num(o.get("aqiCategoryName", ""))},
+        "ReportingArea": o.get("reportingAreaName", ""),
+    } for o in (raw or [])]
+
+def _normalize_aqi_forecast(raw: list | None) -> list:
+    """Adapt /aq/forecast/current/ items to the legacy forecast shape
+    (DateForecast, ParameterName, AQI, Category{Name,Number}, ActionDay)."""
+    return [{
+        "DateForecast":  f.get("dateValid", ""),
+        "ParameterName": _aqi_param(f.get("parameterName", "")),
+        "AQI":           f.get("aqi"),
+        "Category":      {"Name":   f.get("categoryName", ""),
+                          "Number": f.get("categoryNumber", 1)},
+        "ActionDay":     f.get("actionDay", False),
+        "ReportingArea": f.get("reportingArea", ""),
+    } for f in (raw or [])]
+
 _aqi_obs_cache: dict = {"data":None,"ts":0.0}
 AQI_CACHE_SECS = 3600
 
@@ -1604,10 +1655,11 @@ async def fetch_aqi() -> list | None:
     if time.time()-_aqi_obs_cache["ts"] < AQI_CACHE_SECS and _aqi_obs_cache["data"] is not None:
         return _aqi_obs_cache["data"]
     try:
-        data = await _http_get(AIRNOW_OBS_URL, service="airnow", params={
+        raw = await _http_get(AIRNOW_OBS_URL, service="airnow", params={
             "format":"application/json","latitude":FORECAST_LAT,
             "longitude":FORECAST_LON,"distance":25,"API_KEY":AIRNOW_KEY,
         })
+        data = _normalize_aqi_obs(raw)
         _aqi_obs_cache["data"] = data; _aqi_obs_cache["ts"] = time.time()
         return data
     except RuntimeError as e:
@@ -1615,8 +1667,10 @@ async def fetch_aqi() -> list | None:
     except aiohttp.ClientResponseError as e:
         if e.status >= 500:
             log.warning(f"AirNow obs: HTTP {e.status} (transient)")
-        else:
+        elif e.status in (401, 403):
             log.error(f"AirNow obs: HTTP {e.status} — check API key")
+        else:
+            log.error(f"AirNow obs: HTTP {e.status} (see response body logged above)")
     except Exception as e:
         log.error(f"AirNow obs fetch failed: {_exc(e)}")
     return None
@@ -1624,13 +1678,20 @@ async def fetch_aqi() -> list | None:
 async def fetch_aqi_forecast() -> list | None:
     if not AIRNOW_KEY: return None
     try:
-        return await _http_get(AIRNOW_FORECAST_URL, service="airnow", params={
+        raw = await _http_get(AIRNOW_FORECAST_URL, service="airnow", params={
             "format":"application/json","latitude":FORECAST_LAT,
-            "longitude":FORECAST_LON,"date":_now_et().strftime("%Y-%m-%d"),
-            "distance":25,"API_KEY":AIRNOW_KEY,
+            "longitude":FORECAST_LON,"distance":25,"API_KEY":AIRNOW_KEY,
         })
+        return _normalize_aqi_forecast(raw)
     except RuntimeError as e:
         log.warning(f"AQI forecast skipped: {e}")
+    except aiohttp.ClientResponseError as e:
+        if e.status >= 500:
+            log.warning(f"AirNow forecast: HTTP {e.status} (transient)")
+        elif e.status in (401, 403):
+            log.error(f"AirNow forecast: HTTP {e.status} — check API key")
+        else:
+            log.error(f"AirNow forecast: HTTP {e.status} (see response body logged above)")
     except Exception as e:
         log.error(f"AirNow forecast fetch failed: {_exc(e)}")
     return None

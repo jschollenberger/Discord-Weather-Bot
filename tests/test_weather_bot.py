@@ -982,3 +982,28 @@ class TestMorningBriefingWiring:
         assert "if BRIEFING_ENABLED else 'disabled'" in SRC
         assert "BRIEFING_HOUR" in SRC[SRC.index('"  Briefing  : '):
                                       SRC.index('"  Briefing  : ') + 120]
+
+
+class TestAirNowMigration:
+    """AirNow retired the lat/long services 2026-09-30; the bot must call the
+    new endpoints and normalize their responses, and log the error body."""
+
+    def test_new_endpoints_in_use(self):
+        assert "/aq/observation/current/ziplatlong/" in SRC
+        assert "/aq/forecast/current/" in SRC
+        assert "/aq/observation/latLong/current/" not in SRC   # retired
+        assert "/aq/forecast/latLong/" not in SRC              # retired
+
+    def test_fetch_uses_normalizers(self):
+        assert "_normalize_aqi_obs(raw)" in SRC
+        assert "_normalize_aqi_forecast(raw)" in SRC
+
+    def test_http_get_logs_error_body(self):
+        block = SRC[SRC.index("async def _http_get"):
+                    SRC.index("async def _http_get") + 2500]
+        assert "await r.text()" in block        # surface the server's error message
+
+    def test_aqi_error_not_mislabeled_as_key(self):
+        # 410 (retired endpoint) must not be logged as "check API key"
+        block = SRC[SRC.index("async def fetch_aqi(") : SRC.index("def build_aqi_embed")]
+        assert "elif e.status in (401, 403):" in block
